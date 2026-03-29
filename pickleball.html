@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pickleball Scheduler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body {
+      font-family: system-ui, Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, button {
+      font-size: 18px;
+      padding: 10px;
+      width: 100%;
+      margin-top: 6px;
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .card {
+      background: white;
+      padding: 14px;
+      margin-top: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    hr {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Pickleball Scheduler</h1>
+
+<label>Player names (comma separated)</label>
+<input id="playersInput" placeholder="Alex, Sam, Jordan, Riley">
+
+<label>Number of courts</label>
+<input id="courtsInput" type="number" min="1" value="1">
+
+<button onclick="start()">Generate First Round</button>
+<button onclick="nextRound()">Next Round</button>
+
+<div class="card">
+  <div id="timerDisplay" style="font-size: 36px; font-weight: bold;">
+    08:00
+  </div>
+
+  <button onclick="startTimer()">Start Timer</button>
+  <button onclick="togglePause()">Pause</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+/* ===================== STATE ===================== */
+
+let players = [];
+let courts = 1;
+let playCount = {};
+let sitoutStreak = {};
+
+let partnerCount = {};
+let lastPartner = {};
+
+let roundNumber = 0;
+
+
+let timerSeconds = 8 * 60;   // 8 minutes
+let timerInterval = null;
+let timerRunning = false;
+
+let currentRound = null;
+let nextRoundData = null;
+
+/* ===================== HELPERS ===================== */
+
+function key(a, b) {
+  return [a, b].sort().join("|");
+}
+
+function hasUnplayedPartner(player) {
+  return Object.values(partnerCount[player]).some(count => count === 0);
+}
+
+function partnerShieldRounds() {
+  return Math.floor((players.length * (players.length - 1)) / 8);
+}
+
+
+/* ===================== ROUND GENERATION ===================== */
+/*
+  HARD‑CONSTRAINT FAIR SCHEDULER
+  Phase 1: Eligibility (fairness enforced)
+  Phase 2: Pairing (partner exhaustion + cooldown)
+*/
+
+function generateRound() {
+
+  const SLOTS = courts * 4;
+  let matches = [];
+
+  // Defensive initialization
+  players.forEach(p => {
+    if (playCount[p] === undefined) playCount[p] = 0;
+    if (sitoutStreak[p] === undefined) sitoutStreak[p] = 0;
+  });
+
+  /* ---------- Phase 1: Eligibility ---------- */
+
+  let maxSit = Math.max(...players.map(p => sitoutStreak[p]));
+
+  let forced = players.filter(p => sitoutStreak[p] === maxSit && maxSit >= 2);
+  let remaining = players.filter(p => !forced.includes(p));
+
+  remaining.sort((a, b) => {
+    if (playCount[a] !== playCount[b]) {
+      return playCount[a] - playCount[b];
+    }
+    return Math.random() - 0.5;
+  });
+
+  let playing = [...forced];
+  for (let p of remaining) {
+    if (playing.length >= SLOTS) break;
+    playing.push(p);
+  }
+
+  let sitting = players.filter(p => !playing.includes(p));
+
+  players.forEach(p => {
+    if (playing.includes(p)) sitoutStreak[p] = 0;
+    else sitoutStreak[p]++;
+  });
+
+  /* ---------- Phase 2: Partner Pairing ---------- */
+
+  playing = [...playing].sort(() => Math.random() - 0.5);
+
+  while (playing.length >= 4) {
+
+    let group = playing.splice(0, 4);
+
+    let combos = [
+      [[group[0], group[1]], [group[2], group[3]]],
+      [[group[0], group[2]], [group[1], group[3]]],
+      [[group[0], group[3]], [group[1], group[2]]]
+    ];
+
+    let scored = combos.map(combo => {
+      let [a1, a2] = combo[0];
+      let [b1, b2] = combo[1];
+      let score = 0;
+
+      score += partnerCount[a1][a2];
+      score += partnerCount[b1][b2];
+
+      if (
+        partnerCount[a1][a2] > 0 &&
+        (hasUnplayedPartner(a1) || hasUnplayedPartner(a2))
+      ) score += 1000;
+
+      if (
+        partnerCount[b1][b2] > 0 &&
+        (hasUnplayedPartner(b1) || hasUnplayedPartner(b2))
+      ) score += 1000;
+
+if (
+    roundNumber < partnerShieldRounds() &&
+    partnerCount[a1][a2] > 0
+  ) {
+    score += 10000;
+  }
+
+  if (
+    roundNumber < partnerShieldRounds() &&
+    partnerCount[b1][b2] > 0
+  ) {
+    score += 10000;
+  }
+
+
+      if (lastPartner[a1] === a2 || lastPartner[a2] === a1) score += 500;
+      if (lastPartner[b1] === b2 || lastPartner[b2] === b1) score += 500;
+
+      return { combo, score };
+    });
+
+    scored.sort((x, y) => x.score - y.score);
+    let chosen = scored[0].combo;
+
+    let [a1, a2] = chosen[0];
+    let [b1, b2] = chosen[1];
+
+    partnerCount[a1][a2]++;
+    partnerCount[a2][a1]++;
+    partnerCount[b1][b2]++;
+    partnerCount[b2][b1]++;
+
+    lastPartner[a1] = a2;
+    lastPartner[a2] = a1;
+    lastPartner[b1] = b2;
+    lastPartner[b2] = b1;
+
+    playCount[a1]++;
+    playCount[a2]++;
+    playCount[b1]++;
+    playCount[b2]++;
+
+    matches.push({
+      court: matches.length + 1,
+      teamA: chosen[0],
+      teamB: chosen[1]
+    });
+  }
+
+  return { matches, sitouts: sitting };
+}
+
+/* ===================== START / ADVANCE ===================== */
+
+function start() {
+  players = document.getElementById("playersInput").value
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  courts = parseInt(document.getElementById("courtsInput").value, 10);
+
+  playCount = {};
+  sitoutStreak = {};
+  partnerCount = {};
+  lastPartner = {};
+
+  roundNumber = 0;
+
+  players.forEach(p => {
+    playCount[p] = 0;
+    sitoutStreak[p] = 0;
+    lastPartner[p] = null;
+
+    partnerCount[p] = {};
+    players.forEach(other => {
+      if (p !== other) partnerCount[p][other] = 0;
+    });
+  });
+
+  currentRound = generateRound();
+  nextRoundData = generateRound();
+  render();
+}
+
+function nextRound() {
+  resetTimer();  
+  roundNumber++;
+  currentRound = nextRoundData;
+  nextRoundData = generateRound();
+  render();
+}
+/* ===================== TIMER ===================== */
+
+function updateTimerDisplay() {
+  let minutes = Math.floor(timerSeconds / 60);
+  let seconds = timerSeconds % 60;
+  document.getElementById("timerDisplay").innerText =
+    String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+}
+
+
+function startTimer() {
+  if (timerRunning) return;
+
+  timerRunning = true;
+
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    updateTimerDisplay();
+
+    if (timerSeconds <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerRunning = false;
+      playAlarm();
+    }
+  }, 1000);
+}
+
+
+function togglePause() {
+  if (!timerRunning && timerSeconds > 0) {
+    // Resume
+    startTimer();
+    return;
+  }
+
+  // Pause
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerRunning = false;
+}
+
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerRunning = false;
+  timerSeconds = 8 * 60;
+  updateTimerDisplay();
+}
+
+function playAlarm() {
+  // simple beep (Safari-safe)
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  gain.gain.setValueAtTime(0.4, ctx.currentTime);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start();
+  osc.stop(ctx.currentTime + 1.5);
+}
+
+
+/* ===================== RENDER ===================== */
+
+function renderRound(title, round) {
+  let html = "<h2>" + title + "</h2>";
+
+  round.matches.forEach(m => {
+    html +=
+      "<div class='card'>" +
+      "<strong>Court " + m.court + "</strong><hr>" +
+      m.teamA[0] + " & " + m.teamA[1] +
+      "<br>vs<br>" +
+      m.teamB[0] + " & " + m.teamB[1] +
+      "</div>";
+  });
+
+  if (round.sitouts.length) {
+    html +=
+      "<div class='card'>Sitting out:<br>" +
+      round.sitouts.join(", ") +
+      "</div>";
+  }
+
+  return html;
+}
+
+function render() {
+  document.getElementById("output").innerHTML =
+    renderRound("Current Round", currentRound) +
+    renderRound("Next Round (Preview)", nextRoundData);
+}
+
+</script>
+</body>
+</html>

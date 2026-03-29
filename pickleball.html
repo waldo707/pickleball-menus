@@ -66,6 +66,13 @@
     text-align: center;
   }
 
+  .court-label {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    opacity: 0.85;
+  }
+
   .team {
     font-size: 24px;
     font-weight: 600;
@@ -145,7 +152,7 @@ let timerSeconds=8*60, timerInterval=null, timerRunning=false;
 
 let currentRound=null, nextRoundData=null;
 
-/* ===================== HELPERS ===================== */
+/* ===================== VIEW CONTROL ===================== */
 
 function setView(v){
   menuView.style.display=v==="menu"?"block":"none";
@@ -153,7 +160,7 @@ function setView(v){
   runningView.style.display=v==="running"?"block":"none";
 }
 
-/* ===================== ADD / REMOVE PLAYERS ===================== */
+/* ===================== PLAYER BUTTONS ===================== */
 
 function addPlayer(){
   const name=playerActionInput.value.trim();
@@ -213,7 +220,7 @@ function updateTimer(){
 
 function startTimer(){
   if(timerRunning) return;
-  playAlarm(); // unlock audio
+  playAlarm();   // unlock audio on user gesture
   timerRunning=true;
   setView("running");
 
@@ -240,13 +247,14 @@ function resetTimer(){
   updateTimer();
 }
 
-/* ===================== SCHEDULER ===================== */
+/* ===================== SIMPLE SCHEDULER ===================== */
 
 function generateRound(){
-  let matches=[], slotPlayers=[...players];
-  while(slotPlayers.length>=4){
-    const [a,b,c,d]=slotPlayers.splice(0,4);
-    matches.push({teamA:[a,b],teamB:[c,d]});
+  let matches=[];
+  let pool=[...players];
+  while(pool.length>=4){
+    const [a,b,c,d]=pool.splice(0,4);
+    matches.push({teamA:[a,b], teamB:[c,d]});
   }
   return {matches};
 }
@@ -284,7 +292,7 @@ function nextRound(){
 }
 
 function goToMenu(){
-  if(sessionActive && !confirm("Return to main menu?")) return;
+  if(sessionActive && !confirm("Going back to the main menu will end the current schedule. Continue?")) return;
   resetTimer();
   setView("menu");
 }
@@ -292,15 +300,17 @@ function goToMenu(){
 /* ===================== RENDER ===================== */
 
 function render(){
-  currentRoundNames.innerHTML=currentRound.matches.map(m=>`
+  currentRoundNames.innerHTML=currentRound.matches.map((m,i)=>`
     <div class="matchup">
+      <div class="court-label">Court ${i+1}</div>
       <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
       <div class="vs">vs</div>
       <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
     </div>`).join("");
 
-  nextRoundNames.innerHTML=nextRoundData.matches.map(m=>`
+  nextRoundNames.innerHTML=nextRoundData.matches.map((m,i)=>`
     <div class="matchup">
+      <div class="court-label">Court ${i+1}</div>
       <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
       <div class="vs">vs</div>
       <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
@@ -309,3 +319,4 @@ function render(){
 </script>
 </body>
 </html>
+``

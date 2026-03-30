@@ -211,6 +211,38 @@ function removePlayer() {
   playerActionInput.value = "";
 }
 
+/* ===================== AUDIO ===================== */
+
+let audioCtx = null;
+
+function ensureAudioUnlocked() {
+  if (!audioCtx) {
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+function playAlarm() {
+  ensureAudioUnlocked();
+
+  const oscillator = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = 880; // audible beep
+  gain.gain.value = 1.0;
+
+  oscillator.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  oscillator.start();
+  oscillator.stop(audioCtx.currentTime + 1.2);
+}
 
 /* ===================== TIMER ===================== */
 function updateTimer(){
@@ -221,6 +253,7 @@ function updateTimer(){
 }
 
 function startTimer(){
+  ensureAudioUnlocked();
   if(timerRunning) return;
 
   if(roundState === "finished"){

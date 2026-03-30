@@ -12,9 +12,7 @@ body {
   background: #f4f4f4;
 }
 
-h1, h2, h3 {
-  text-align: center;
-}
+h1, h2, h3 { text-align: center; }
 
 label {
   display: block;
@@ -22,7 +20,7 @@ label {
   font-weight: 600;
 }
 
-textarea, input, button {
+textarea,input,button {
   font-size: 18px;
   padding: 10px;
   width: 100%;
@@ -111,7 +109,7 @@ button {
   <div id="timerDisplayRunning" class="timer-running">00:00</div>
   <button onclick="togglePause()">Pause / Resume</button>
 
-  <h3 id="nextHeading">Next Round</h3>
+  <h3>Next Round</h3>
   <div id="nextRoundNames"></div>
 
   <button onclick="nextRound()">Next Round</button>
@@ -122,15 +120,12 @@ button {
 /* ===================== STATE ===================== */
 
 let players=[], courts=1;
-let playCount={}, sitouts={}, partnerCount={};
+let playCount={}, sitoutStreak={}, partnerCount={};
 let currentRound=null, nextRoundData=null;
 let roundState="idle";
 
 /* Timer */
-let timerSeconds=0;
-let timerMinutes=8;
-let timerInterval=null;
-let timerRunning=false;
+let timerMinutes=8, timerSeconds=0, timerRunning=false, timerInterval=null;
 
 /* ===================== VIEW ===================== */
 
@@ -141,6 +136,7 @@ function setView(v){
 }
 
 /* ===================== AUDIO ===================== */
+
 let audioCtx=null;
 function unlockAudio(){
   if(!audioCtx){
@@ -164,16 +160,16 @@ function playAlarm(){
 function updateTimer(){
   const m=String(Math.floor(timerSeconds/60)).padStart(2,"0");
   const s=String(timerSeconds%60).padStart(2,"0");
-  timerDisplay.textContent = m+":"+s;
-  timerDisplayRunning.textContent = m+":"+s;
+  timerDisplay.textContent=m+":"+s;
+  timerDisplayRunning.textContent=m+":"+s;
 }
 
 function startTimer(){
   if(timerRunning) return;
 
   if(roundState==="finished"){
-    currentRound = nextRoundData;
-    nextRoundData = generateRound();
+    currentRound=nextRoundData;
+    nextRoundData=generateRound();
   }
 
   unlockAudio();
@@ -206,31 +202,28 @@ function togglePause(){
   timerRunning=false;
 }
 
-/* ===================== FAIR SCHEDULER ===================== */
+/* ===================== FAIRNESS SCHEDULER ===================== */
 
 function generateRound(){
-  const slots = courts * 4;
+  const slots=courts*4;
 
-  // Initialize state
   players.forEach(p=>{
     playCount[p] ??= 0;
-    sitouts[p] ??= 0;
+    sitoutStreak[p] ??= 0;
     partnerCount[p] ??= {};
   });
 
-  // Sort by fairness
-  let order=[...players].sort((a,b)=>
-    playCount[a]-playCount[b]
-  );
+  const sorted=[...players].sort((a,b)=>{
+    if(playCount[a]!==playCount[b]) return playCount[a]-playCount[b];
+    return sitoutStreak[b]-sitoutStreak[a];
+  });
 
-  let playing=order.slice(0,slots);
-  let sitting=order.slice(slots);
+  let playing=sorted.slice(0,slots);
+  let sitting=sorted.slice(slots);
 
-  // Cap sitouts
-  playing.forEach(p=>sitouts[p]=0);
-  sitting.forEach(p=>sitouts[p]++);
+  playing.forEach(p=>sitoutStreak[p]=0);
+  sitting.forEach(p=>sitoutStreak[p]++);
 
-  // Pairing with repeat‑partner avoidance
   let matches=[];
   let pool=[...playing];
 
@@ -242,9 +235,7 @@ function generateRound(){
           for(let l=k+1;l<pool.length;l++){
             if(new Set([i,j,k,l]).size<4) continue;
             const a=pool[i], b=pool[j], c=pool[k], d=pool[l];
-            const score =
-              (partnerCount[a][b]||0) +
-              (partnerCount[c][d]||0);
+            const score=(partnerCount[a][b]||0)+(partnerCount[c][d]||0);
             if(score<bestScore){
               bestScore=score;
               best=[a,b,c,d];
@@ -259,13 +250,10 @@ function generateRound(){
     partnerCount[b][a]=(partnerCount[b][a]||0)+1;
     partnerCount[c][d]=(partnerCount[c][d]||0)+1;
     partnerCount[d][c]=(partnerCount[d][c]||0)+1;
-
     playCount[a]++; playCount[b]++;
     playCount[c]++; playCount[d]++;
-
-    pool = pool.filter(p=>![a,b,c,d].includes(p));
+    pool=pool.filter(p=>![a,b,c,d].includes(p));
   }
-
   return {matches};
 }
 
@@ -276,14 +264,12 @@ function start(){
   courts=parseInt(courtsInput.value,10)||1;
   timerMinutes=parseInt(timerMinutesInput.value,10)||8;
 
+  playCount={}; sitoutStreak={}; partnerCount={};
   timerSeconds=timerMinutes*60;
   roundState="idle";
 
-  playCount={}; sitouts={}; partnerCount={};
-
   currentRound=generateRound();
   nextRoundData=generateRound();
-
   render();
   setView("round");
 }
@@ -306,26 +292,23 @@ function goToMenu(){
 /* ===================== RENDER ===================== */
 
 function render(){
-  roundHeading.textContent =
-    roundState==="finished" ? "Up Now" : "Current Round";
+  roundHeading.textContent=roundState==="finished"?"Up Now":"Current Round";
 
-  currentRoundNames.innerHTML =
-    currentRound.matches.map((m,i)=>`
-      <div class="matchup">
-        <div class="court-label">Court ${i+1}</div>
-        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
-        <div class="vs">vs</div>
-        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>`).join("");
+  currentRoundNames.innerHTML=currentRound.matches.map((m,i)=>`
+    <div class="matchup">
+      <div class="court-label">Court ${i+1}</div>
+      <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+      <div class="vs">vs</div>
+      <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+    </div>`).join("");
 
-  nextRoundNames.innerHTML =
-    nextRoundData.matches.map((m,i)=>`
-      <div class="matchup">
-        <div class="court-label">Court ${i+1}</div>
-        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
-        <div class="vs">vs</div>
-        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>`).join("");
+  nextRoundNames.innerHTML=nextRoundData.matches.map((m,i)=>`
+    <div class="matchup">
+      <div class="court-label">Court ${i+1}</div>
+      <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+      <div class="vs">vs</div>
+      <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+    </div>`).join("");
 }
 </script>
 </body>

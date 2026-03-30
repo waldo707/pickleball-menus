@@ -272,7 +272,7 @@ function updateTimer(){
   timerDisplayRunning.textContent = m+":"+s;
 }
 
-function startTimer() {
+ function startTimer() {
   if (timerRunning) return;
 
   // Stop any previous alarm blinking
@@ -306,18 +306,7 @@ function startTimer() {
     }
   }, 1000);
 }
-  roundState = "running";
-  timerRunning = true;
-  setView("running");
-
-  timerInterval = setInterval(()=>{
-    timerSeconds--;
-    updateTimer();
-    if(timerSeconds <= 0){
-      endRound();
-    }
-  },1000);
-}
+ 
 
 function endRound(){
   clearInterval(timerInterval);

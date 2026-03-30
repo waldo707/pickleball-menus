@@ -6,111 +6,87 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-  body {
-    font-family: system-ui, Arial, sans-serif;
-    padding: 20px;
-    background: #f4f4f4;
-  }
+body {
+  font-family: system-ui, Arial, sans-serif;
+  padding: 20px;
+  background: #f4f4f4;
+}
 
-  h1, h2, h3 {
-    text-align: center;
-  }
+h1, h2, h3 {
+  text-align: center;
+}
 
-  label {
-    display: block;
-    margin-top: 12px;
-    font-weight: 600;
-  }
+label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 600;
+}
 
-  textarea, input, button {
-    font-size: 18px;
-    padding: 10px;
-    width: 100%;
-    margin-top: 6px;
-  }
+textarea, input, button {
+  font-size: 18px;
+  padding: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
 
-  textarea {
-    -webkit-overflow-scrolling: touch;
-  }
+button {
+  background: #007acc;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  margin-top: 14px;
+}
 
-  button {
-    background: #007acc;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    margin-top: 14px;
-  }
+.secondary { background:#666; }
 
-  .secondary {
-    background: #666;
-  }
+/* Timer */
+.timer {
+  font-size: 64px;
+  font-weight: 800;
+  text-align: center;
+  margin: 20px 0;
+}
+.timer-running {
+  font-size: 72px;
+  font-weight: 900;
+  text-align: center;
+  margin: 26px 0;
+}
+@media (max-width:420px){
+  .timer{font-size:52px;}
+  .timer-running{font-size:64px;}
+}
 
-  /* TIMER */
-  .timer {
-    font-size: 68px;
-    font-weight: 800;
-    margin: 20px 0;
-    text-align: center;
-  }
-
-  .timer-running {
-    font-size: 82px;
-    font-weight: 900;
-    margin: 24px 0;
-    text-align: center;
-  }
-
-  @media (max-width: 420px) {
-    .timer {
-      font-size: 56px;
-    }
-    .timer-running {
-      font-size: 68px;
-    }
-  }
-
-  /* MATCH DISPLAY */
-  .matchup {
-    margin: 24px 0;
-    text-align: center;
-  }
-
-  .court-label {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 4px;
-    opacity: 0.85;
-  }
-
-  .team {
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .vs {
-    font-size: 18px;
-    margin: 6px 0;
-    opacity: 0.7;
-  }
+/* Matches */
+.matchup {
+  margin: 22px 0;
+  text-align: center;
+}
+.court-label {
+  font-size: 18px;
+  font-weight: 700;
+}
+.team {
+  font-size: 22px;
+  font-weight: 600;
+}
+.vs {
+  font-size: 18px;
+  opacity:0.7;
+  margin:6px 0;
+}
 </style>
 </head>
 
 <body>
 
-<!-- ===================== MAIN MENU ===================== -->
 <div id="menuView">
   <h1>Pickleball Scheduler</h1>
 
   <label>Players</label>
-  <textarea id="playersInput" rows="3"
-    placeholder="Brian, Mike, Sherry, Sue"></textarea>
+  <textarea id="playersInput" rows="3"></textarea>
 
-  <input id="playerActionInput" placeholder="Player name">
-
-  <button onclick="addPlayer()">Add Player</button>
-  <button class="secondary" onclick="removePlayer()">Delete Player</button>
-
-  <label>Number of courts</label>
+  <label>Courts</label>
   <input id="courtsInput" type="number" min="1" value="1">
 
   <label>Match length (minutes)</label>
@@ -119,77 +95,68 @@
   <button onclick="start()">Generate Schedule</button>
 </div>
 
-<!-- ===================== ROUND VIEW ===================== -->
 <div id="roundView" style="display:none;">
   <h2 id="roundHeading">Current Round</h2>
   <div id="currentRoundNames"></div>
 
-  <div id="timerDisplay" class="timer">08:00</div>
+  <div id="timerDisplay" class="timer">00:00</div>
 
   <button onclick="startTimer()">Start Timer</button>
   <button onclick="togglePause()">Pause / Resume</button>
-
   <button onclick="nextRound()">Next Round</button>
-  <button class="secondary" onclick="goToMenu()">Back to Main Menu</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
 </div>
 
-<!-- ===================== RUNNING VIEW ===================== -->
 <div id="runningView" style="display:none;">
-  <div id="timerDisplayRunning" class="timer-running">08:00</div>
-
+  <div id="timerDisplayRunning" class="timer-running">00:00</div>
   <button onclick="togglePause()">Pause / Resume</button>
 
   <h3 id="nextHeading">Next Round</h3>
   <div id="nextRoundNames"></div>
 
   <button onclick="nextRound()">Next Round</button>
-  <button class="secondary" onclick="goToMenu()">Back to Main Menu</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
 </div>
 
 <script>
 /* ===================== STATE ===================== */
 
-let players=[];
-let courts=1;
+let players=[], courts=1;
+let playCount={}, sitouts={}, partnerCount={};
+let currentRound=null, nextRoundData=null;
+let roundState="idle";
 
-let timerDurationMinutes=8;
-let timerSeconds=480;
+/* Timer */
+let timerSeconds=0;
+let timerMinutes=8;
 let timerInterval=null;
 let timerRunning=false;
-
-let currentRound=null;
-let nextRoundData=null;
-let roundState="idle"; // idle | running | finished
 
 /* ===================== VIEW ===================== */
 
 function setView(v){
-  menuView.style.display = v==="menu" ? "block" : "none";
-  roundView.style.display = v==="round" ? "block" : "none";
-  runningView.style.display = v==="running" ? "block" : "none";
+  menuView.style.display=v==="menu"?"block":"none";
+  roundView.style.display=v==="round"?"block":"none";
+  runningView.style.display=v==="running"?"block":"none";
 }
 
 /* ===================== AUDIO ===================== */
-
 let audioCtx=null;
-
-function ensureAudioUnlocked(){
+function unlockAudio(){
   if(!audioCtx){
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioCtx();
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    audioCtx=new Ctx();
   }
   if(audioCtx.state==="suspended") audioCtx.resume();
 }
-
 function playAlarm(){
-  ensureAudioUnlocked();
+  unlockAudio();
   const o=audioCtx.createOscillator();
   const g=audioCtx.createGain();
   o.frequency.value=880;
   g.gain.value=0.5;
   o.connect(g); g.connect(audioCtx.destination);
-  o.start();
-  o.stop(audioCtx.currentTime+1.2);
+  o.start(); o.stop(audioCtx.currentTime+1.2);
 }
 
 /* ===================== TIMER ===================== */
@@ -197,20 +164,19 @@ function playAlarm(){
 function updateTimer(){
   const m=String(Math.floor(timerSeconds/60)).padStart(2,"0");
   const s=String(timerSeconds%60).padStart(2,"0");
-  timerDisplay.textContent=m+":"+s;
-  timerDisplayRunning.textContent=m+":"+s;
+  timerDisplay.textContent = m+":"+s;
+  timerDisplayRunning.textContent = m+":"+s;
 }
 
 function startTimer(){
   if(timerRunning) return;
 
-  // If we just finished a round, promote "Up Now"
   if(roundState==="finished"){
     currentRound = nextRoundData;
     nextRoundData = generateRound();
   }
 
-  ensureAudioUnlocked();
+  unlockAudio();
   roundState="running";
   timerRunning=true;
   setView("running");
@@ -229,59 +195,77 @@ function endRound(){
   clearInterval(timerInterval);
   timerRunning=false;
   roundState="finished";
-  timerSeconds=timerDurationMinutes*60;
+  timerSeconds=timerMinutes*60;
   render();
   setView("round");
 }
 
 function togglePause(){
-  if(!timerRunning && timerSeconds>0) return startTimer();
+  if(!timerRunning && timerSeconds>0){ startTimer(); return; }
   clearInterval(timerInterval);
   timerRunning=false;
 }
 
-/* ===================== PLAYERS ===================== */
-
-function addPlayer(){
-  const name=playerActionInput.value.trim();
-  if(!name) return;
-  let list=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  if(list.some(p=>p.toLowerCase()===name.toLowerCase())){
-    alert("Player already exists.");
-    return;
-  }
-  list.push(name);
-  playersInput.value=list.join(", ");
-  playerActionInput.value="";
-}
-
-function removePlayer(){
-  const name=playerActionInput.value.trim();
-  if(!name){
-    alert("Type a player name to remove.");
-    return;
-  }
-  let list=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  const matches=list.filter(p=>p.toLowerCase()===name.toLowerCase());
-  if(matches.length===0){
-    alert("Name not found.");
-    return;
-  }
-  if(!confirm(`Remove "${matches[0]}"?`)) return;
-  playersInput.value=list.filter(p=>p!==matches[0]).join(", ");
-  playerActionInput.value="";
-}
-
-/* ===================== SCHEDULER ===================== */
+/* ===================== FAIR SCHEDULER ===================== */
 
 function generateRound(){
+  const slots = courts * 4;
+
+  // Initialize state
+  players.forEach(p=>{
+    playCount[p] ??= 0;
+    sitouts[p] ??= 0;
+    partnerCount[p] ??= {};
+  });
+
+  // Sort by fairness
+  let order=[...players].sort((a,b)=>
+    playCount[a]-playCount[b]
+  );
+
+  let playing=order.slice(0,slots);
+  let sitting=order.slice(slots);
+
+  // Cap sitouts
+  playing.forEach(p=>sitouts[p]=0);
+  sitting.forEach(p=>sitouts[p]++);
+
+  // Pairing with repeat‑partner avoidance
   let matches=[];
-  let pool=[...players].sort(()=>Math.random()-0.5);
-  for(let i=0;i<courts;i++){
-    if(pool.length<4) break;
-    const [a,b,c,d]=pool.splice(0,4);
+  let pool=[...playing];
+
+  while(pool.length>=4){
+    let best=null, bestScore=Infinity;
+    for(let i=0;i<pool.length;i++){
+      for(let j=i+1;j<pool.length;j++){
+        for(let k=0;k<pool.length;k++){
+          for(let l=k+1;l<pool.length;l++){
+            if(new Set([i,j,k,l]).size<4) continue;
+            const a=pool[i], b=pool[j], c=pool[k], d=pool[l];
+            const score =
+              (partnerCount[a][b]||0) +
+              (partnerCount[c][d]||0);
+            if(score<bestScore){
+              bestScore=score;
+              best=[a,b,c,d];
+            }
+          }
+        }
+      }
+    }
+    const [a,b,c,d]=best;
     matches.push({teamA:[a,b],teamB:[c,d]});
+    partnerCount[a][b]=(partnerCount[a][b]||0)+1;
+    partnerCount[b][a]=(partnerCount[b][a]||0)+1;
+    partnerCount[c][d]=(partnerCount[c][d]||0)+1;
+    partnerCount[d][c]=(partnerCount[d][c]||0)+1;
+
+    playCount[a]++; playCount[b]++;
+    playCount[c]++; playCount[d]++;
+
+    pool = pool.filter(p=>![a,b,c,d].includes(p));
   }
+
   return {matches};
 }
 
@@ -290,10 +274,12 @@ function generateRound(){
 function start(){
   players=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
   courts=parseInt(courtsInput.value,10)||1;
-  timerDurationMinutes=parseInt(timerMinutesInput.value,10)||8;
+  timerMinutes=parseInt(timerMinutesInput.value,10)||8;
 
-  timerSeconds=timerDurationMinutes*60;
+  timerSeconds=timerMinutes*60;
   roundState="idle";
+
+  playCount={}; sitouts={}; partnerCount={};
 
   currentRound=generateRound();
   nextRoundData=generateRound();
@@ -305,14 +291,13 @@ function start(){
 function nextRound(){
   currentRound=nextRoundData;
   nextRoundData=generateRound();
+  timerSeconds=timerMinutes*60;
   roundState="idle";
-  timerSeconds=timerDurationMinutes*60;
   render();
   setView("round");
 }
 
 function goToMenu(){
-  if(!confirm("Return to main menu?")) return;
   clearInterval(timerInterval);
   timerRunning=false;
   setView("menu");
@@ -324,9 +309,6 @@ function render(){
   roundHeading.textContent =
     roundState==="finished" ? "Up Now" : "Current Round";
 
-  nextHeading.textContent =
-    roundState==="running" ? "Next Round" : "Next Round";
-
   currentRoundNames.innerHTML =
     currentRound.matches.map((m,i)=>`
       <div class="matchup">
@@ -334,8 +316,7 @@ function render(){
         <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
         <div class="vs">vs</div>
         <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>
-    `).join("");
+      </div>`).join("");
 
   nextRoundNames.innerHTML =
     nextRoundData.matches.map((m,i)=>`
@@ -344,10 +325,8 @@ function render(){
         <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
         <div class="vs">vs</div>
         <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>
-    `).join("");
+      </div>`).join("");
 }
 </script>
 </body>
 </html>
-``

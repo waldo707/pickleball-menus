@@ -275,11 +275,11 @@ function updateTimer(){
 function startTimer() {
   if (timerRunning) return;
 
-  // ✅ Stop any previous alarm blinking
+  // Stop any previous alarm blinking
   timerDisplay.classList.remove("timer-alarm");
   timerDisplayRunning.classList.remove("timer-alarm");
 
-  // ✅ Unlock audio on user gesture
+  // Unlock audio on user gesture
   ensureAudioUnlocked();
 
   if (roundState === "finished") {
@@ -296,10 +296,9 @@ function startTimer() {
     updateTimer();
 
     if (timerSeconds <= 0) {
-      // ✅ ALARM SOUND
       playAlarm();
 
-      // ✅ RED BLINK VISUAL
+      // Start red blinking
       timerDisplay.classList.add("timer-alarm");
       timerDisplayRunning.classList.add("timer-alarm");
 

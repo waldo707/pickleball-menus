@@ -284,13 +284,25 @@ function start(){
   setView("round");
 }
 
-function nextRound(){
-  currentRound=nextRoundData;
-  nextRoundData=generateRound();
-  timerSeconds=timerMinutes*60;
-  roundState="idle";
+function nextRound() {
+  // ✅ ALWAYS stop the timer
+  if (timerInterval) {
+    clearInterval(timerInterval);
+  }
+  timerRunning = false;
+
+  // ✅ Reset timer to user-selected duration
+  timerSeconds = timerMinutes * 60;
+  updateTimer();
+
+  // ✅ Advance the schedule ONLY
+  currentRound = nextRoundData;
+  nextRoundData = generateRound();
+
+  roundState = "idle";  // not running, not finished
+
   render();
-  setView("round");
+  setView("round");     // stay on round view
 }
 
 function goToMenu(){

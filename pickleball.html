@@ -83,7 +83,20 @@ button {
   <h1>Pickleball Scheduler</h1>
 
   <label>Players</label>
-  <textarea id="playersInput" rows="3" placeholder="Brian, Mike, Sherry, Sue"></textarea>
+<textarea id="playersInput" rows="3"
+  placeholder="Brian, Mike, Sherry, Sue"></textarea>
+
+<input id="playerActionInput" placeholder="Type player name">
+
+<button onclick="addPlayer()">Add Player</button>
+<button class="secondary" onclick="removePlayer()">Delete Player</button><label>Players</label>
+<textarea id="playersInput" rows="3"
+  placeholder="Brian, Mike, Sherry, Sue"></textarea>
+
+<input id="playerActionInput" placeholder="Type player name">
+
+<button onclick="addPlayer()">Add Player</button>
+<button class="secondary" onclick="removePlayer()">Delete Player</button>
 
   <label>Courts</label>
   <input id="courtsInput" type="number" min="1" value="1">
@@ -155,6 +168,56 @@ function setView(v){
   roundView.style.display = v==="round" ? "block" : "none";
   runningView.style.display = v==="running" ? "block" : "none";
 }
+
+/* ===================== ADDPLAYER ===================== */
+function addPlayer() {
+  const name = playerActionInput.value.trim();
+  if (!name) return;
+
+  const list = playersInput.value
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  // Prevent duplicates (case-insensitive)
+  if (list.some(p => p.toLowerCase() === name.toLowerCase())) {
+    alert("That player is already in the list.");
+    return;
+  }
+
+  list.push(name);
+  playersInput.value = list.join(", ");
+  playerActionInput.value = "";
+}
+
+function removePlayer() {
+  const name = playerActionInput.value.trim();
+  if (!name) {
+    alert("Please type a player name to delete.");
+    return;
+  }
+
+  const list = playersInput.value
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  // Case-insensitive match
+  const matchIndex = list.findIndex(
+    p => p.toLowerCase() === name.toLowerCase()
+  );
+
+  // ✅ Warning if not found
+  if (matchIndex === -1) {
+    alert(`"${name}" was not found.\nCheck spelling and try again.`);
+    return;
+  }
+
+  list.splice(matchIndex, 1);
+  playersInput.value = list.join(", ");
+  playerActionInput.value = "";
+}
+
 
 /* ===================== TIMER ===================== */
 function updateTimer(){

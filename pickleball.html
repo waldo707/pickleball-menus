@@ -147,7 +147,8 @@ button {
 </div>
 
 <script>
-/* ===================== DOM REFERENCES (FIXED) ===================== */
+
+  /* ===================== DOM REFERENCES (FIXED) ===================== */
 const menuView = document.getElementById("menuView");
 const roundView = document.getElementById("roundView");
 const runningView = document.getElementById("runningView");
@@ -264,6 +265,7 @@ function playAlarm() {
   oscillator.stop(audioCtx.currentTime + 1.2);
 }
 
+
 /* ===================== TIMER ===================== */
 function updateTimer(){
   const m = String(Math.floor(timerSeconds/60)).padStart(2,"0");
@@ -302,11 +304,11 @@ function updateTimer(){
       timerDisplay.classList.add("timer-alarm");
       timerDisplayRunning.classList.add("timer-alarm");
 
+
       endRound();
     }
   }, 1000);
 }
- 
 
 function endRound(){
   clearInterval(timerInterval);

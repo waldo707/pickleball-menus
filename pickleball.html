@@ -11,20 +11,25 @@
       padding: 20px;
       background: #f4f4f4;
     }
-    h1, h2 {
+    h1, h2, h3 {
       text-align: center;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
     }
     input, button {
       font-size: 18px;
       padding: 10px;
       width: 100%;
-      margin-top: 10px;
+      margin-top: 6px;
     }
     button {
       background: #007acc;
-      border: none;
       color: white;
+      border: none;
       border-radius: 8px;
+      margin-bottom: 10px;
     }
     .card {
       background: white;
@@ -33,162 +38,246 @@
       border-radius: 8px;
       text-align: center;
     }
-    hr {
-      margin: 10px 0;
-    }
   </style>
 </head>
 
 <body>
 
-<h1>Pickleball Scheduler</h1>
+<!-- ===================== MAIN MENU ===================== -->
+<div id="menuView">
+  <h1>Pickleball Scheduler</h1>
 
-<label>Player names (comma separated)</label>
-<input id="playersInput" placeholder="Alex, Sam, Jordan, Riley">
+  <label>Player names (comma separated)</label>
+  <input id="playersInput" placeholder="Alex, Sam, Jordan, Riley">
 
-<label>Number of courts</label>
-<input id="courtsInput" type="number" min="1" value="1">
+  <label>Number of courts</label>
+  <input id="courtsInput" type="number" min="1" value="1">
 
-<button onclick="start()">Generate First Round</button>
+  <button onclick="start()">Generate First Round</button>
+</div>
 
-<div id="output"></div>
+<!-- ===================== ROUND VIEW ===================== -->
+<div id="roundView" style="display:none;">
+  <h2>Current Round</h2>
+  <div id="currentRoundNames"></div>
 
-<button onclick="nextRound()">Next Round</button>
+  <div class="card">
+    <div id="timerDisplay" style="font-size:36px; font-weight:bold;">
+      08:00
+    </div>
+    <button onclick="startTimer()">Start Timer</button>
+    <button onclick="togglePause()">Pause / Resume</button>
+  </div>
+
+  <button onclick="nextRound()">Next Round</button>
+</div>
+
+<!-- ===================== RUNNING VIEW ===================== -->
+<div id="runningView" style="display:none;">
+  <div id="timerDisplayRunning"
+       style="font-size:48px; font-weight:bold; text-align:center;">
+    08:00
+  </div>
+
+  <button onclick="togglePause()">Pause / Resume</button>
+
+  <h3>Next Round</h3>
+  <div id="nextRoundNames"></div>
+
+  <button onclick="nextRound()">Next Round</button>
+</div>
 
 <script>
 /* ===================== STATE ===================== */
 
 let players = [];
 let courts = 1;
+
 let playCount = {};
-let usedPartners = new Set();
+let sitoutStreak = {};
+
+let partnerCount = {};
+let lastPartner = {};
+
+let roundNumber = 0;
+
+// Timer state
+let timerSeconds = 8 * 60;
+let timerInterval = null;
+let timerRunning = false;
 
 let currentRound = null;
 let nextRoundData = null;
 
 /* ===================== HELPERS ===================== */
 
-function key(a, b) {
-  return [a, b].sort().join("|");
+function hasUnplayedPartner(player) {
+  return Object.values(partnerCount[player]).some(v => v === 0);
+}
+
+function partnerShieldRounds() {
+  return Math.floor((players.length * (players.length - 1)) / 8);
+}
+
+function setView(view) {
+  document.getElementById("menuView").style.display = view === "menu" ? "block" : "none";
+  document.getElementById("roundView").style.display = view === "round" ? "block" : "none";
+  document.getElementById("runningView").style.display = view === "running" ? "block" : "none";
 }
 
 /* ===================== ROUND GENERATION ===================== */
 
 function generateRound() {
-
-  // Defensive init (Safari safety)
-  players.forEach(p => {
-    if (playCount[p] === undefined) playCount[p] = 0;
-  });
-
-  let grouped = {};
-  players.forEach(p => {
-    let count = playCount[p];
-    if (!grouped[count]) grouped[count] = [];
-    grouped[count].push(p);
-  });
-
-  let available = [];
-  Object.keys(grouped)
-    .sort((a, b) => a - b)
-    .forEach(k => {
-      available.push(...grouped[k].sort(() => Math.random() - 0.5));
-    });
-
+  const SLOTS = courts * 4;
   let matches = [];
 
-  for (let i = 1; i <= courts; i++) {
-    if (available.length < 4) break;
+  players.forEach(p => {
+    if (playCount[p] == null) playCount[p] = 0;
+    if (sitoutStreak[p] == null) sitoutStreak[p] = 0;
+  });
 
-    let group = available.splice(0, 4);
+  // Phase 1: eligibility
+  let maxSit = Math.max(...players.map(p => sitoutStreak[p]));
+  let forced = players.filter(p => sitoutStreak[p] === maxSit && maxSit >= 2);
+  let remaining = players.filter(p => !forced.includes(p));
+
+  remaining.sort((a, b) =>
+    playCount[a] !== playCount[b]
+      ? playCount[a] - playCount[b]
+      : Math.random() - 0.5
+  );
+
+  let playing = [...forced];
+  for (let p of remaining) if (playing.length < SLOTS) playing.push(p);
+  let sitting = players.filter(p => !playing.includes(p));
+
+  players.forEach(p => {
+    p && (sitoutStreak[p] = playing.includes(p) ? 0 : sitoutStreak[p] + 1);
+  });
+
+  // Phase 2: pairing
+  playing = [...playing].sort(() => Math.random() - 0.5);
+
+  while (playing.length >= 4) {
+    let g = playing.splice(0, 4);
 
     let combos = [
-      [[group[0], group[1]], [group[2], group[3]]],
-      [[group[0], group[2]], [group[1], group[3]]],
-      [[group[0], group[3]], [group[1], group[2]]]
-    ].sort(() => Math.random() - 0.5);
+      [[g[0], g[1]], [g[2], g[3]]],
+      [[g[0], g[2]], [g[1], g[3]]],
+      [[g[0], g[3]], [g[1], g[2]]]
+    ];
 
-    let chosen = combos.find(c =>
-      !usedPartners.has(key(c[0][0], c[0][1])) &&
-      !usedPartners.has(key(c[1][0], c[1][1]))
-    ) || combos[0];
+    let scored = combos.map(c => {
+      let [a1,a2] = c[0], [b1,b2] = c[1];
+      let score = partnerCount[a1][a2] + partnerCount[b1][b2];
 
-    usedPartners.add(key(chosen[0][0], chosen[0][1]));
-    usedPartners.add(key(chosen[1][0], chosen[1][1]));
+      if (roundNumber < partnerShieldRounds() && partnerCount[a1][a2] > 0) score += 10000;
+      if (roundNumber < partnerShieldRounds() && partnerCount[b1][b2] > 0) score += 10000;
 
-    chosen[0].forEach(p => playCount[p]++);
-    chosen[1].forEach(p => playCount[p]++);
+      if (partnerCount[a1][a2] > 0 && (hasUnplayedPartner(a1) || hasUnplayedPartner(a2))) score += 1000;
+      if (partnerCount[b1][b2] > 0 && (hasUnplayedPartner(b1) || hasUnplayedPartner(b2))) score += 1000;
 
-    matches.push({
-      court: i,
-      teamA: chosen[0],
-      teamB: chosen[1]
+      if (lastPartner[a1] === a2 || lastPartner[a2] === a1) score += 500;
+      if (lastPartner[b1] === b2 || lastPartner[b2] === b1) score += 500;
+
+      return { combo:c, score };
     });
+
+    scored.sort((x,y)=>x.score-y.score);
+    let [[a1,a2],[b1,b2]] = scored[0].combo;
+
+    partnerCount[a1][a2]++; partnerCount[a2][a1]++;
+    partnerCount[b1][b2]++; partnerCount[b2][b1]++;
+
+    lastPartner[a1]=a2; lastPartner[a2]=a1;
+    lastPartner[b1]=b2; lastPartner[b2]=b1;
+
+    playCount[a1]++; playCount[a2]++; playCount[b1]++; playCount[b2]++;
+
+    matches.push({ teamA:[a1,a2], teamB:[b1,b2] });
   }
 
-  return { matches, sitouts: available };
+  return { matches, sitouts:sitting };
 }
 
 /* ===================== START / ADVANCE ===================== */
 
 function start() {
   players = document.getElementById("playersInput").value
-    .split(",")
-    .map(p => p.trim())
-    .filter(Boolean);
+    .split(",").map(p=>p.trim()).filter(Boolean);
 
-  courts = parseInt(document.getElementById("courtsInput").value);
+  courts = parseInt(document.getElementById("courtsInput").value,10);
 
-  playCount = {};
-  usedPartners.clear();
-  players.forEach(p => playCount[p] = 0);
+  playCount = {}; sitoutStreak = {}; partnerCount = {}; lastPartner = {};
+  roundNumber = 0; resetTimer();
+
+  players.forEach(p=>{
+    playCount[p]=0; sitoutStreak[p]=0; lastPartner[p]=null;
+    partnerCount[p]={};
+    players.forEach(o=>{ if(p!==o) partnerCount[p][o]=0; });
+  });
 
   currentRound = generateRound();
   nextRoundData = generateRound();
-
   render();
+  setView("round");
 }
 
 function nextRound() {
+  resetTimer();
+  roundNumber++;
   currentRound = nextRoundData;
   nextRoundData = generateRound();
   render();
+  setView("round");
+}
+
+/* ===================== TIMER ===================== */
+
+function updateTimerDisplay() {
+  let m = Math.floor(timerSeconds/60).toString().padStart(2,"0");
+  let s = (timerSeconds%60).toString().padStart(2,"0");
+  document.getElementById("timerDisplay").innerText = m+":"+s;
+  document.getElementById("timerDisplayRunning").innerText = m+":"+s;
+}
+
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  setView("running");
+
+  timerInterval=setInterval(()=>{
+    timerSeconds--; updateTimerDisplay();
+    if(timerSeconds<=0){ resetTimer(); }
+  },1000);
+}
+
+function togglePause() {
+  if (!timerRunning && timerSeconds>0) return startTimer();
+  clearInterval(timerInterval); timerRunning=false;
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerRunning=false;
+  timerSeconds=8*60;
+  updateTimerDisplay();
 }
 
 /* ===================== RENDER ===================== */
 
-function renderRound(title, round) {
-  let html = `<h2>${title}</h2>`;
-
-  round.matches.forEach(m => {
-    html += `
-      <div class="card">
-        <strong>Court ${m.court}</strong><br>
-        ${m.teamA[0]} & ${m.teamA[1]}
-        <hr>
-        ${m.teamB[0]} & ${m.teamB[1]}
-      </div>
-    `;
-  });
-
-  if (round.sitouts.length) {
-    html += `
-      <div class="card">
-        Sitting out:<br>${round.sitouts.join(", ")}
-      </div>
-    `;
-  }
-
-  return html;
+function render() {
+  document.getElementById("currentRoundNames").innerHTML =
+    formatMatches(currentRound);
+  document.getElementById("nextRoundNames").innerHTML =
+    formatMatches(nextRoundData);
 }
 
-function render() {
-  let html = "";
-  html += renderRound("Current Round", currentRound);
-  html += renderRound("Next Match (Preview)", nextRoundData);
-  document.getElementById("output").innerHTML = html;
+function formatMatches(r) {
+  return r.matches.map(m =>
+    `<div class="card">${m.teamA[0]} & ${m.teamA[1]} vs ${m.teamB[0]} & ${m.teamB[1]}</div>`
+  ).join("");
 }
 </script>
-
 </body>
 </html>

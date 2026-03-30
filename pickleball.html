@@ -6,397 +6,321 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-  body {
-    font-family: system-ui, Arial, sans-serif;
-    padding: 20px;
-    background: #f4f4f4;
-  }
+body {
+  font-family: system-ui, Arial, sans-serif;
+  padding: 20px;
+  background: #f4f4f4;
+}
 
-  h1, h2, h3 {
-    text-align: center;
-  }
+h1, h2, h3 { text-align: center; }
 
-  label {
-    display: block;
-    margin-top: 12px;
-    font-weight: 600;
-  }
+label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 600;
+}
 
-  textarea, input, button {
-    font-size: 18px;
-    padding: 10px;
-    width: 100%;
-    margin-top: 6px;
-  }
+textarea, input, button {
+  font-size: 18px;
+  padding: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
 
-  textarea {
-    -webkit-overflow-scrolling: touch;
-  }
+button {
+  background: #007acc;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  margin-top: 14px;
+}
 
-  button {
-    background: #007acc;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    margin-top: 14px;
-  }
+.secondary { background:#666; }
 
-  .secondary {
-    background: #666;
-  }
+/* Timer */
+.timer {
+  font-size: 64px;
+  font-weight: 800;
+  text-align: center;
+  margin: 20px 0;
+}
+.timer-running {
+  font-size: 72px;
+  font-weight: 900;
+  text-align: center;
+  margin: 26px 0;
+}
+@media (max-width:420px){
+  .timer{font-size:52px;}
+  .timer-running{font-size:64px;}
+}
 
-  .card {
-    background: white;
-    padding: 22px;
-    margin-top: 18px;
-    border-radius: 14px;
-    text-align: center;
-  }
-
-  /* TIMER */
-  .timer {
-    font-size: 78px;
-    font-weight: 800;
-    margin-bottom: 26px;
-  }
-
-  .timer-running {
-    font-size: 98px;
-    font-weight: 900;
-    margin: 34px 0;
-    text-align: center;
-  }
-
-  /* MATCHES */
-  .match {
-    font-size: 20px;
-    margin: 10px 0;
-  }
-
-  .next-round .match {
-    font-size: 23px;
-    font-weight: 600;
-  }
+/* Match display */
+.matchup {
+  margin: 22px 0;
+  text-align: center;
+}
+.court-label {
+  font-size: 18px;
+  font-weight: 700;
+}
+.team {
+  font-size: 22px;
+  font-weight: 600;
+}
+.vs {
+  font-size: 18px;
+  opacity:0.7;
+  margin:6px 0;
+}
 </style>
 </head>
 
 <body>
 
-<!-- ===================== MAIN MENU ===================== -->
+<!-- ===== MAIN MENU ===== -->
 <div id="menuView">
   <h1>Pickleball Scheduler</h1>
 
   <label>Players</label>
-  <textarea id="playersInput" rows="3"
-    placeholder="Alex, Sam, Jordan, Riley"></textarea>
+  <textarea id="playersInput" rows="3" placeholder="Brian, Mike, Sherry, Sue"></textarea>
 
-  <input id="playerActionInput" placeholder="Player name">
-
-  <button onclick="addPlayer()">Add Player</button>
-  <button class="secondary" onclick="removePlayer()">Delete Player</button>
-
-  <label>Number of courts</label>
+  <label>Courts</label>
   <input id="courtsInput" type="number" min="1" value="1">
 
   <label>Match length (minutes)</label>
   <input id="timerMinutesInput" type="number" min="1" value="8">
 
-  <button onclick="sessionActive ? updatePlayersAndResume() : start()">
-    Generate / Resume Schedule
-  </button>
+  <button onclick="start()">Generate Schedule</button>
 </div>
 
-<!-- ===================== ROUND VIEW ===================== -->
+<!-- ===== ROUND VIEW ===== -->
 <div id="roundView" style="display:none;">
-  <h2>Current Round</h2>
+  <h2 id="roundHeading">Current Round</h2>
   <div id="currentRoundNames"></div>
 
-  <div class="card">
-    <div id="timerDisplay" class="timer">08:00</div>
-    <button onclick="startTimer()">Start Timer</button>
-    <button onclick="togglePause()">Pause / Resume</button>
-  </div>
+  <div id="timerDisplay" class="timer">00:00</div>
 
+  <button onclick="startTimer()">Start Timer</button>
+  <button onclick="togglePause()">Pause / Resume</button>
   <button onclick="nextRound()">Next Round</button>
-  <button class="secondary" onclick="goToMenu()">Back to Main Menu</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
 </div>
 
-<!-- ===================== RUNNING VIEW ===================== -->
+<!-- ===== RUNNING VIEW ===== -->
 <div id="runningView" style="display:none;">
-  <div id="timerDisplayRunning" class="timer-running">08:00</div>
+  <div id="timerDisplayRunning" class="timer-running">00:00</div>
 
   <button onclick="togglePause()">Pause / Resume</button>
 
-  <h3>Next Round</h3>
-  <div id="nextRoundNames" class="next-round"></div>
+  <h3 id="nextHeading">Next Round</h3>
+  <div id="nextRoundNames"></div>
 
-  <button style="margin-top:34px" onclick="nextRound()">Next Round</button>
-  <button class="secondary" onclick="goToMenu()">Back to Main Menu</button>
+  <button onclick="nextRound()">Next Round</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
 </div>
 
 <script>
+/* ===================== DOM REFERENCES (FIXED) ===================== */
+const menuView = document.getElementById("menuView");
+const roundView = document.getElementById("roundView");
+const runningView = document.getElementById("runningView");
+
+const playersInput = document.getElementById("playersInput");
+const courtsInput = document.getElementById("courtsInput");
+const timerMinutesInput = document.getElementById("timerMinutesInput");
+
+const currentRoundNames = document.getElementById("currentRoundNames");
+const nextRoundNames = document.getElementById("nextRoundNames");
+const roundHeading = document.getElementById("roundHeading");
+
+const timerDisplay = document.getElementById("timerDisplay");
+const timerDisplayRunning = document.getElementById("timerDisplayRunning");
+
 /* ===================== STATE ===================== */
 
-let players=[], courts=1;
-let playCount={}, sitoutStreak={}, partnerCount={}, lastPartner={}, joinBoost={};
-let roundNumber=0, sessionActive=false;
+let players = [], courts = 1;
+let playCount = {}, sitoutStreak = {}, partnerCount = {};
 
-let timerDurationMinutes=8;
-let timerSeconds=8*60, timerInterval=null, timerRunning=false;
+let currentRound = null, nextRoundData = null;
+let roundState = "idle";
 
-let currentRound=null, nextRoundData=null;
+/* Timer */
+let timerMinutes = 8, timerSeconds = 0;
+let timerInterval = null, timerRunning = false;
 
-/* ===================== HELPERS ===================== */
-
+/* ===================== VIEW ===================== */
 function setView(v){
-  menuView.style.display=v==="menu"?"block":"none";
-  roundView.style.display=v==="round"?"block":"none";
-  runningView.style.display=v==="running"?"block":"none";
-}
-
-function hasUnplayedPartner(p){
-  return Object.values(partnerCount[p]).some(v=>v===0);
-}
-
-function partnerShieldRounds(){
-  return Math.floor((players.length*(players.length-1))/8);
-}
-
-function averagePlayCount(){
-  const vals=Object.values(playCount);
-  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
-}
-
-/* ===================== PLAYER BUTTONS ===================== */
-
-function addPlayer(){
-  const name=playerActionInput.value.trim();
-  if(!name) return;
-
-  let list=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  if(list.some(p=>p.toLowerCase()===name.toLowerCase())){
-    alert("Player already exists.");
-    return;
-  }
-  list.push(name);
-  playersInput.value=list.join(", ");
-  playerActionInput.value="";
-}
-
-function removePlayer(){
-  const name=playerActionInput.value.trim();
-  if(!name){
-    alert("Please type a player name to delete.");
-    return;
-  }
-
-  let list=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  const matches=list.filter(p=>p.toLowerCase()===name.toLowerCase());
-
-  if(matches.length===0){
-    alert(`"${name}" not found. Check spelling.`);
-    return;
-  }
-
-  if(!confirm(`Remove "${matches[0]}" from the schedule?`)) return;
-
-  playersInput.value=list.filter(p=>p!==matches[0]).join(", ");
-  playerActionInput.value="";
-}
-
-/* ===================== ROUND GENERATION ===================== */
-
-function generateRound(){
-  const SLOTS=courts*4;
-  let matches=[];
-
-  players.forEach(p=>{
-    playCount[p]??=0;
-    sitoutStreak[p]??=0;
-    joinBoost[p]??=0;
-  });
-
-  let boosted=players.filter(p=>joinBoost[p]>0);
-  let maxSit=Math.max(...players.map(p=>sitoutStreak[p]));
-  let forced=[...new Set([...boosted,...players.filter(p=>sitoutStreak[p]>=2&&sitoutStreak[p]===maxSit)])];
-
-  let remaining=players.filter(p=>!forced.includes(p));
-  remaining.sort((a,b)=>playCount[a]!==playCount[b]?playCount[a]-playCountMath.random()-0.5);
-
-  let playing=[...forced];
-  for(let p of remaining) if(playing.length<SLOTS) playing.push(p);
-
-  players.forEach(p=>{
-    sitoutStreak[p]=playing.includes(p)?0:Math.min(sitoutStreak[p]+1,2);
-    if(joinBoost[p]>0) joinBoost[p]--;
-  });
-
-  playing=[...playing].sort(()=>Math.random()-0.5);
-
-  while(playing.length>=4){
-    let g=playing.splice(0,4);
-    let combos=[
-      [[g[0],g[1]],[g[2],g[3]]],
-      [[g[0],g[2]],[g[1],g[3]]],
-      [[g[0],g[3]],[g[1],g[2]]]
-    ];
-
-    let best=null,score=Infinity;
-    for(let [[a1,a2],[b1,b2]] of combos){
-      let s=partnerCount[a1][a2]+partnerCount[b1][b2];
-      if(roundNumber<partnerShieldRounds()&&partnerCount[a1][a2]>0)s+=10000;
-      if(partnerCount[a1][a2]>0&&(hasUnplayedPartner(a1)||hasUnplayedPartner(a2)))s+=1000;
-      if(lastPartner[a1]===a2||lastPartner[a2]===a1)s+=500;
-      if(s<score){score=s;best=[[a1,a2],[b1,b2]];}
-    }
-
-    let [[a1,a2],[b1,b2]]=best;
-    partnerCount[a1][a2]++;partnerCount[a2][a1]++;
-    partnerCount[b1][b2]++;partnerCount[b2][b1]++;
-    playCount[a1]++;playCount[a2]++;
-    playCount[b1]++;playCount[b2]++;
-    lastPartner[a1]=a2;lastPartner[a2]=a1;
-    lastPartner[b1]=b2;lastPartner[b2]=b1;
-
-    matches.push({teamA:[a1,a2],teamB:[b1,b2]});
-  }
-  return {matches};
-}
-
-/* ===================== START / RESUME ===================== */
-
-function start(){
-  players=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  courts=parseInt(courtsInput.value,10);
-  timerDurationMinutes=parseInt(timerMinutesInput.value,10)||8;
-
-  playCount={};sitoutStreak={};partnerCount={};lastPartner={};joinBoost={};
-  roundNumber=0;resetTimer();
-
-  players.forEach(p=>{
-    playCount[p]=0;sitoutStreak[p]=0;lastPartner[p]=null;joinBoost[p]=0;
-    partnerCount[p]={};
-    players.forEach(o=>{if(p!==o)partnerCount[p][o]=0;});
-  });
-
-  currentRound=generateRound();
-  nextRoundData=generateRound();
-  render();setView("round");sessionActive=true;
-}
-
-function updatePlayersAndResume(){
-  timerDurationMinutes=parseInt(timerMinutesInput.value,10)||8;
-  const newPlayers=playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  const removed=players.filter(p=>!newPlayers.includes(p));
-  const added=newPlayers.filter(p=>!players.includes(p));
-
-  removed.forEach(p=>{
-    delete playCount[p];delete sitoutStreak[p];delete partnerCount[p];
-    delete joinBoost[p];delete lastPartner[p];
-    players.forEach(o=>{if(partnerCount[o])delete partnerCount[o][p];});
-  });
-
-  const avg=averagePlayCount();
-  added.forEach(p=>{
-    playCount[p]=avg;sitoutStreak[p]=0;lastPartner[p]=null;joinBoost[p]=2;
-    partnerCount[p]={};
-  });
-
-  players=newPlayers;
-  players.forEach(p=>{
-    partnerCount[p]??={};
-    players.forEach(o=>{if(p!==o)partnerCount[p][o]??=0;});
-  });
-
-  nextRoundData=generateRound();
-  resetTimer();
-  render();setView("round");
-}
-
-/* ===================== NAVIGATION ===================== */
-
-function nextRound(){
-  resetTimer();roundNumber++;
-  currentRound=nextRoundData;
-  nextRoundData=generateRound();
-  render();setView("round");
-}
-
-function goToMenu(){
-  if(sessionActive&&!confirm("Going back to the main menu will end the current schedule. Continue?"))return;
-  resetTimer();setView("menu");
+  menuView.style.display = v==="menu" ? "block" : "none";
+  roundView.style.display = v==="round" ? "block" : "none";
+  runningView.style.display = v==="running" ? "block" : "none";
 }
 
 /* ===================== TIMER ===================== */
-
-function playAlarm(){
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AudioCtx();
-
-  if (ctx.state === "suspended") ctx.resume();
-
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-
-  o.frequency.value = 880;
-  g.gain.value = 0.5;
-
-  o.connect(g);
-  g.connect(ctx.destination);
-
-  o.start();
-  o.stop(ctx.currentTime + 1.5);
-}
-
-function updateTimerDisplay(){
-  const m=String(Math.floor(timerSeconds/60)).padStart(2,"0");
-  const s=String(timerSeconds%60).padStart(2,"0");
-  timerDisplay.textContent=m+":"+s;
-  timerDisplayRunning.textContent=m+":"+s;
+function updateTimer(){
+  const m = String(Math.floor(timerSeconds/60)).padStart(2,"0");
+  const s = String(timerSeconds%60).padStart(2,"0");
+  timerDisplay.textContent = m+":"+s;
+  timerDisplayRunning.textContent = m+":"+s;
 }
 
 function startTimer(){
   if(timerRunning) return;
 
-  // ✅ unlock audio immediately on user gesture
-  playAlarm();
+  if(roundState === "finished"){
+    currentRound = nextRoundData;
+    nextRoundData = generateRound();
+  }
 
-  timerRunning=true;
+  roundState = "running";
+  timerRunning = true;
   setView("running");
 
-  timerInterval=setInterval(()=>{
+  timerInterval = setInterval(()=>{
     timerSeconds--;
-    updateTimerDisplay();
-    if(timerSeconds<=0){
-      playAlarm();
-      resetTimer();
+    updateTimer();
+    if(timerSeconds <= 0){
+      endRound();
     }
   },1000);
 }
 
+function endRound(){
+  clearInterval(timerInterval);
+  timerRunning = false;
+  roundState = "finished";
+  timerSeconds = timerMinutes * 60;
+  render();
+  setView("round");
+}
+
 function togglePause(){
-  if(!timerRunning&&timerSeconds>0) return startTimer();
+  if(!timerRunning && timerSeconds>0){ startTimer(); return; }
   clearInterval(timerInterval);
   timerRunning=false;
 }
 
-function resetTimer(){
+/* ===================== FAIRNESS SCHEDULER ===================== */
+function generateRound(){
+  const slots = courts * 4;
+
+  players.forEach(p => {
+    playCount[p] ??= 0;
+    sitoutStreak[p] ??= 0;
+    partnerCount[p] ??= {};
+  });
+
+  /* Phase 1: Fairness ordering */
+  let sorted = [...players].sort((a,b)=>{
+    if(playCount[a]!==playCount[b]) return playCount[a]-playCount[b];
+    return sitoutStreak[b]-sitoutStreak[a];
+  });
+
+  /* Phase 2: Controlled randomness */
+  const buffer = Math.min(2, sorted.length-slots);
+  let eligible = sorted.slice(0, slots+buffer).sort(()=>Math.random()-0.5);
+
+  let playing = eligible.slice(0, slots);
+  let sitting = players.filter(p=>!playing.includes(p));
+
+  playing.forEach(p=>sitoutStreak[p]=0);
+  sitting.forEach(p=>sitoutStreak[p]++);
+
+  /* Phase 3: Partner pairing */
+  let matches = [], pool=[...playing];
+
+  while(pool.length>=4){
+    let best=null, bestScore=Infinity;
+    for(let i=0;i<pool.length;i++){
+      for(let j=i+1;j<pool.length;j++){
+        for(let k=0;k<pool.length;k++){
+          for(let l=k+1;l<pool.length;l++){
+            const set=new Set([i,j,k,l]);
+            if(set.size<4) continue;
+
+            const a=pool[i], b=pool[j], c=pool[k], d=pool[l];
+            const score=(partnerCount[a][b]||0)+(partnerCount[c][d]||0);
+
+            if(score<bestScore){
+              bestScore=score;
+              best=[a,b,c,d];
+            }
+          }
+        }
+      }
+    }
+
+    const [a,b,c,d]=best;
+    matches.push({teamA:[a,b], teamB:[c,d]});
+
+    partnerCount[a][b]=(partnerCount[a][b]||0)+1;
+    partnerCount[b][a]=partnerCount[a][b];
+    partnerCount[c][d]=(partnerCount[c][d]||0)+1;
+    partnerCount[d][c]=partnerCount[c][d];
+
+    playCount[a]++; playCount[b]++;
+    playCount[c]++; playCount[d]++;
+
+    pool = pool.filter(p=>![a,b,c,d].includes(p));
+  }
+
+  return {matches};
+}
+
+/* ===================== FLOW ===================== */
+function start(){
+  players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
+  courts = parseInt(courtsInput.value,10)||1;
+  timerMinutes = parseInt(timerMinutesInput.value,10)||8;
+
+  playCount={}; sitoutStreak={}; partnerCount={};
+  timerSeconds = timerMinutes*60;
+  roundState="idle";
+
+  currentRound=generateRound();
+  nextRoundData=generateRound();
+
+  render();
+  setView("round");
+}
+
+function nextRound(){
+  currentRound=nextRoundData;
+  nextRoundData=generateRound();
+  timerSeconds=timerMinutes*60;
+  roundState="idle";
+  render();
+  setView("round");
+}
+
+function goToMenu(){
   clearInterval(timerInterval);
   timerRunning=false;
-  timerSeconds=timerDurationMinutes*60;
-  updateTimerDisplay();
+  setView("menu");
 }
 
 /* ===================== RENDER ===================== */
-
 function render(){
-  currentRoundNames.innerHTML=currentRound.matches.map(m=>
-    `<div class="match">${m.teamA[0]} & ${m.teamA[1]} vs ${m.teamB[0]} & ${m.teamB[1]}</div>`
-  ).join("");
+  roundHeading.textContent =
+    roundState==="finished" ? "Up Now" : "Current Round";
 
-  nextRoundNames.innerHTML=nextRoundData.matches.map(m=>
-    `<div class="match">${m.teamA[0]} & ${m.teamA[1]} vs ${m.teamB[0]} & ${m.teamB[1]}</div>`
-  ).join("");
+  currentRoundNames.innerHTML =
+    currentRound.matches.map((m,i)=>`
+      <div class="matchup">
+        <div class="court-label">Court ${i+1}</div>
+        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+        <div class="vs">vs</div>
+        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+      </div>`).join("");
+
+  nextRoundNames.innerHTML =
+    nextRoundData.matches.map((m,i)=>`
+      <div class="matchup">
+        <div class="court-label">Court ${i+1}</div>
+        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+        <div class="vs">vs</div>
+        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+      </div>`).join("");
 }
 </script>
 </body>

@@ -189,7 +189,8 @@ function setView(v){
   runningView.style.display = v==="running" ? "block" : "none";
 }
 
-/* ===================== ADDPLAYER ===================== */
+
+/* ===================== ADD PLAYER ===================== */
 function addPlayer() {
   const name = playerActionInput.value.trim();
   if (!name) return;
@@ -201,19 +202,39 @@ function addPlayer() {
 
   // Prevent duplicates (case-insensitive)
   if (list.some(p => p.toLowerCase() === name.toLowerCase())) {
-    alert("That player is already in the list.");
+    alert("That player is already in the schedule.");
     return;
   }
 
+  // ✅ Update UI list
   list.push(name);
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
+
+  // ✅ If no session is active yet, stop here
+  if (!sessionActive) {
+    return;
+  }
+
+  // ✅ SESSION IS ACTIVE — merge new player into fairness state
+  players.push(name);
+
+  const playCounts = Object.values(playCount);
+  const minPlayCount =
+    playCounts.length > 0 ? Math.min(...playCounts) : 0;
+
+  playCount[name] = minPlayCount;   // catch-up priority
+  sitoutStreak[name] = 0;           // fresh sit-out
+  partnerCount[name] = {};          // no partner history yet
+
+  console.log(`Player "${name}" added to ongoing session`);
 }
 
+/* ===================== REMOVE PLAYER ===================== */
 function removePlayer() {
   const name = playerActionInput.value.trim();
   if (!name) {
-    alert("Please type a player name to delete.");
+    alert("Please type a player name to remove.");
     return;
   }
 
@@ -222,20 +243,52 @@ function removePlayer() {
     .map(p => p.trim())
     .filter(Boolean);
 
-  // Case-insensitive match
-  const matchIndex = list.findIndex(
+  const index = list.findIndex(
     p => p.toLowerCase() === name.toLowerCase()
   );
 
-  // ✅ Warning if not found
-  if (matchIndex === -1) {
-    alert(`"${name}" was not found.\nCheck spelling and try again.`);
+  if (index === -1) {
+    alert("Player not found. Check spelling.");
     return;
   }
 
-  list.splice(matchIndex, 1);
+  // ✅ Update UI list
+  const removed = list.splice(index, 1)[0];
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
+
+  // ✅ If no session active, stop here
+  if (!sessionActive) {
+    return;
+  }
+
+  // ✅ SESSION IS ACTIVE — remove player from scheduler state
+  players = players.filter(
+    p => p.toLowerCase() !== removed.toLowerCase()
+  );
+
+  delete playCount[removed];
+  delete sitoutStreak[removed];
+  delete partnerCount[removed];
+
+  // ✅ Clean up possible references in upcoming rounds
+  if (currentRound) {
+    currentRound.matches = currentRound.matches.filter(
+      m =>
+        !m.teamA.includes(removed) &&
+        !m.teamB.includes(removed)
+    );
+  }
+
+  if (nextRoundData) {
+    nextRoundData.matches = nextRoundData.matches.filter(
+      m =>
+        !m.teamA.includes(removed) &&
+        !m.teamB.includes(removed)
+    );
+  }
+
+  console.log(`Player "${removed}" removed from ongoing session`);
 }
 
 /* ===================== AUDIO ===================== */
@@ -320,7 +373,6 @@ function endRound(){
   clearInterval(timerInterval);
   timerRunning = false;
   roundState = "finished";
-  timerSeconds = timerMinutes * 60;
   render();
   setView("round");
 }
@@ -452,7 +504,7 @@ function generateRound() {
 ``
 /* ===================== FLOW ===================== */
 function start() {
-  // 🔴 START A BRAND‑NEW SESSION
+  // ✅ FULL RESET — NEW SESSION ONLY
 
   playCount = {};
   sitoutStreak = {};
@@ -460,6 +512,10 @@ function start() {
 
   sessionActive = true;
 
+  // ✅ Timer reset happens ONLY here
+  timerSeconds = timerMinutes * 60;
+
+  // ✅ Generate BOTH rounds ONLY here
   currentRound = generateRound();
   nextRoundData = generateRound();
 
@@ -469,21 +525,19 @@ function start() {
 
 function resumeSchedule() {
   if (!sessionActive) {
-    // If no active session, behave like Generate Schedule
-    start();
+    console.warn("No active session to resume.");
     return;
   }
 
-  // ✅ DO NOT reset playCount, sitoutStreak, or partnerCount
-  // ✅ DO NOT touch currentRound
-  // ✅ ONLY regenerate the upcoming round
+  // ❌ DO NOT reset timer
+  // ❌ DO NOT reset currentRound
+  // ✅ ONLY regenerate the UPCOMING round
 
   nextRoundData = generateRound();
 
   render();
   setView("round");
 }
-
 
 function nextRound() {
   // ✅ ALWAYS stop the timer
@@ -493,7 +547,6 @@ function nextRound() {
   timerRunning = false;
 
   // ✅ Reset timer to user-selected duration
-  timerSeconds = timerMinutes * 60;
   updateTimer();
 
   // ✅ Advance the schedule ONLY
@@ -513,28 +566,34 @@ function goToMenu(){
 }
 
 /* ===================== RENDER ===================== */
-function render(){
-  roundHeading.textContent =
-    roundState==="finished" ? "Up Now" : "Current Round";
 
-  currentRoundNames.innerHTML =
-    currentRound.matches.map((m,i)=>`
-      <div class="matchup">
-        <div class="court-label">Court ${i+1}</div>
-        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
-        <div class="vs">vs</div>
-        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>`).join("");
+function render() {
+  // ✅ Render CURRENT round only if it exists
+  if (currentRound && currentRound.matches) {
+    currentRoundNames.innerHTML =
+      currentRound.matches.map((m, i) => `
+        <div class="matchup">
+          <div class="court-label">Court ${i + 1}</div>
+          <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+          <div class="vs">vs</div>
+          <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+        </div>
+      `).join("");
+  }
 
-  nextRoundNames.innerHTML =
-    nextRoundData.matches.map((m,i)=>`
-      <div class="matchup">
-        <div class="court-label">Court ${i+1}</div>
-        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
-        <div class="vs">vs</div>
-        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
-      </div>`).join("");
-}
+  // ✅ Render NEXT round only if it exists
+  if (nextRoundData && nextRoundData.matches) {
+    nextRoundNames.innerHTML =
+      nextRoundData.matches.map((m, i) => `
+        <div class="matchup">
+          <div class="court-label">Court ${i + 1}</div>
+          <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+          <div class="vs">vs</div>
+          <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+        </div>
+      `).join("");
+  }
+
 </script>
 </body>
 </html>

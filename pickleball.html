@@ -1,122 +1,464 @@
-function generateRound() {
-  const MAX_SITOUT = 2;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pickleball Scheduler</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: system-ui, Arial, sans-serif;
+  padding: 20px;
+  background: #f4f4f4;
+}
+
+h1, h2, h3 { text-align: center; }
+
+label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 600;
+}
+
+textarea, input, button {
+  font-size: 18px;
+  padding: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+button {
+  background: #007acc;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  margin-top: 14px;
+}
+
+.secondary { background:#666; }
+
+/* Timer */
+.timer {
+  font-size: 64px;
+  font-weight: 800;
+  text-align: center;
+  margin: 20px 0;
+}
+.timer-running {
+  font-size: 72px;
+  font-weight: 900;
+  text-align: center;
+  margin: 26px 0;
+}
+/* ===== TIMER ALARM BLINK ===== */
+.timer-alarm {
+  animation: timerBlink 0.6s ease-in-out infinite;
+}
+
+@keyframes timerBlink {
+  0% {
+    color: #ff0000;
+    background-color: transparent;
+  }
+  50% {
+    color: #ffffff;
+    background-color: #ff0000;
+  }
+  100% {
+    color: #ff0000;
+    background-color: transparent;
+  }
+}
+
+@media (max-width:420px){
+  .timer{font-size:52px;}
+  .timer-running{font-size:64px;}
+}
+
+/* Match display */
+.matchup {
+  margin: 22px 0;
+  text-align: center;
+}
+.court-label {
+  font-size: 18px;
+  font-weight: 700;
+}
+.team {
+  font-size: 22px;
+  font-weight: 600;
+}
+.vs {
+  font-size: 18px;
+  opacity:0.7;
+  margin:6px 0;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ===== MAIN MENU ===== -->
+<div id="menuView">
+  <h1>Pickleball Scheduler</h1>
+
+  <label>Players</label>
+<textarea id="playersInput" rows="3"
+  placeholder="Brian, Mike, Sherry, Sue"></textarea>
+
+<input id="playerActionInput" placeholder="Type player name">
+
+<button onclick="addPlayer()">Add Player</button>
+<button class="secondary" onclick="removePlayer()">Delete Player</button><label>Players</label>
+
+  <label>Courts</label>
+  <input id="courtsInput" type="number" min="1" value="1">
+
+  <label>Match length (minutes)</label>
+  <input id="timerMinutesInput" type="number" min="1" value="8">
+
+  <button onclick="start()">Generate Schedule</button>
+</div>
+
+<!-- ===== ROUND VIEW ===== -->
+<div id="roundView" style="display:none;">
+  <h2 id="roundHeading">Current Round</h2>
+  <div id="currentRoundNames"></div>
+
+  <div id="timerDisplay" class="timer">00:00</div>
+
+  <button onclick="startTimer()">Start Timer</button>
+  <button onclick="togglePause()">Pause / Resume</button>
+  <button onclick="nextRound()">Next Round</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
+</div>
+
+<!-- ===== RUNNING VIEW ===== -->
+<div id="runningView" style="display:none;">
+  <div id="timerDisplayRunning" class="timer-running">00:00</div>
+
+  <button onclick="togglePause()">Pause / Resume</button>
+
+  <h3 id="nextHeading">Next Round</h3>
+  <div id="nextRoundNames"></div>
+
+  <button onclick="nextRound()">Next Round</button>
+  <button class="secondary" onclick="goToMenu()">Back to Menu</button>
+</div>
+
+<script>
+
+  /* ===================== DOM REFERENCES (FIXED) ===================== */
+const menuView = document.getElementById("menuView");
+const roundView = document.getElementById("roundView");
+const runningView = document.getElementById("runningView");
+
+const playersInput = document.getElementById("playersInput");
+const courtsInput = document.getElementById("courtsInput");
+const timerMinutesInput = document.getElementById("timerMinutesInput");
+
+const currentRoundNames = document.getElementById("currentRoundNames");
+const nextRoundNames = document.getElementById("nextRoundNames");
+const roundHeading = document.getElementById("roundHeading");
+
+const timerDisplay = document.getElementById("timerDisplay");
+const timerDisplayRunning = document.getElementById("timerDisplayRunning");
+
+/* ===================== STATE ===================== */
+
+let players = [], courts = 1;
+let playCount = {}, sitoutStreak = {}, partnerCount = {};
+
+let currentRound = null, nextRoundData = null;
+let roundState = "idle";
+
+/* Timer */
+let timerMinutes = 8, timerSeconds = 0;
+let timerInterval = null, timerRunning = false;
+
+/* ===================== VIEW ===================== */
+function setView(v){
+  menuView.style.display = v==="menu" ? "block" : "none";
+  roundView.style.display = v==="round" ? "block" : "none";
+  runningView.style.display = v==="running" ? "block" : "none";
+}
+
+/* ===================== ADDPLAYER ===================== */
+function addPlayer() {
+  const name = playerActionInput.value.trim();
+  if (!name) return;
+
+  const list = playersInput.value
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  // Prevent duplicates (case-insensitive)
+  if (list.some(p => p.toLowerCase() === name.toLowerCase())) {
+    alert("That player is already in the list.");
+    return;
+  }
+
+  list.push(name);
+  playersInput.value = list.join(", ");
+  playerActionInput.value = "";
+}
+
+function removePlayer() {
+  const name = playerActionInput.value.trim();
+  if (!name) {
+    alert("Please type a player name to delete.");
+    return;
+  }
+
+  const list = playersInput.value
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  // Case-insensitive match
+  const matchIndex = list.findIndex(
+    p => p.toLowerCase() === name.toLowerCase()
+  );
+
+  // ✅ Warning if not found
+  if (matchIndex === -1) {
+    alert(`"${name}" was not found.\nCheck spelling and try again.`);
+    return;
+  }
+
+  list.splice(matchIndex, 1);
+  playersInput.value = list.join(", ");
+  playerActionInput.value = "";
+}
+
+/* ===================== AUDIO ===================== */
+
+let audioCtx = null;
+
+function ensureAudioUnlocked() {
+  if (!audioCtx) {
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+function playAlarm() {
+  ensureAudioUnlocked();
+
+  const oscillator = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = 1200; // audible beep
+  gain.gain.value = 1.0;
+
+  oscillator.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  oscillator.start();
+  oscillator.stop(audioCtx.currentTime + 1.2);
+}
+
+
+/* ===================== TIMER ===================== */
+function updateTimer(){
+  const m = String(Math.floor(timerSeconds/60)).padStart(2,"0");
+  const s = String(timerSeconds%60).padStart(2,"0");
+  timerDisplay.textContent = m+":"+s;
+  timerDisplayRunning.textContent = m+":"+s;
+}
+
+ function startTimer() {
+  if (timerRunning) return;
+
+  // Stop any previous alarm blinking
+  timerDisplay.classList.remove("timer-alarm");
+  timerDisplayRunning.classList.remove("timer-alarm");
+
+  // Unlock audio on user gesture
+  ensureAudioUnlocked();
+
+  if (roundState === "finished") {
+    currentRound = nextRoundData;
+    nextRoundData = generateRound();
+  }
+
+  roundState = "running";
+  timerRunning = true;
+  setView("running");
+
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    updateTimer();
+
+    if (timerSeconds <= 0) {
+      playAlarm();
+
+      // Start red blinking
+      timerDisplay.classList.add("timer-alarm");
+      timerDisplayRunning.classList.add("timer-alarm");
+
+
+      endRound();
+    }
+  }, 1000);
+}
+
+function endRound(){
+  clearInterval(timerInterval);
+  timerRunning = false;
+  roundState = "finished";
+  timerSeconds = timerMinutes * 60;
+  render();
+  setView("round");
+}
+
+function togglePause(){
+  if(!timerRunning && timerSeconds>0){ startTimer(); return; }
+  clearInterval(timerInterval);
+  timerRunning=false;
+}
+
+/* ===================== FAIRNESS SCHEDULER ===================== */
+function generateRound(){
   const slots = courts * 4;
 
-  /* ----- Initialize state ----- */
   players.forEach(p => {
     playCount[p] ??= 0;
     sitoutStreak[p] ??= 0;
     partnerCount[p] ??= {};
   });
 
-  /* =====================================================
-     PHASE 1 — FORCE PLAYERS WHO SAT OUT TOO LONG
-     ===================================================== */
-  const forcedPlayers = players
-    .filter(p => sitoutStreak[p] >= MAX_SITOUT)
-    .sort((a, b) => playCount[a] - playCount[b]);
-
-  let playing = [...forcedPlayers];
-
-  /* If more forced players than slots, trim by fairness */
-  if (playing.length > slots) {
-    playing = playing.slice(0, slots);
-  }
-
-  /* =====================================================
-     PHASE 2 — FILL REMAINING SLOTS FAIRLY
-     ===================================================== */
-  const remainingSlots = slots - playing.length;
-
-  if (remainingSlots > 0) {
-    const remainingCandidates = players
-      .filter(p => !playing.includes(p))
-      .sort((a, b) => {
-        if (playCount[a] !== playCount[b]) {
-          return playCount[a] - playCount[b];
-        }
-        return sitoutStreak[b] - sitoutStreak[a];
-      });
-
-    /* Controlled randomness buffer */
-    const buffer = Math.min(
-      2,
-      Math.max(0, remainingCandidates.length - remainingSlots)
-    );
-
-    const candidatePool = remainingCandidates
-      .slice(0, remainingSlots + buffer)
-      .sort(() => Math.random() - 0.5);
-
-    playing.push(...candidatePool.slice(0, remainingSlots));
-  }
-
-  /* =====================================================
-     PHASE 3 — UPDATE SIT‑OUT STREAKS
-     ===================================================== */
-  players.forEach(p => {
-    if (playing.includes(p)) {
-      sitoutStreak[p] = 0;
-    } else {
-      sitoutStreak[p]++;
-    }
+  /* Phase 1: Fairness ordering */
+  let sorted = [...players].sort((a,b)=>{
+    if(playCount[a]!==playCount[b]) return playCount[a]-playCount[b];
+    return sitoutStreak[b]-sitoutStreak[a];
   });
 
-  /* =====================================================
-     PHASE 4 — PARTNER‑AWARE PAIRING
-     ===================================================== */
-  let matches = [];
-  let pool = [...playing];
+  /* Phase 2: Controlled randomness */
+  const buffer = Math.min(2, sorted.length-slots);
+  let eligible = sorted.slice(0, slots+buffer).sort(()=>Math.random()-0.5);
 
-  while (pool.length >= 4) {
-    let bestCombo = null;
-    let bestScore = Infinity;
+  let playing = eligible.slice(0, slots);
+  let sitting = players.filter(p=>!playing.includes(p));
 
-    for (let i = 0; i < pool.length; i++) {
-      for (let j = i + 1; j < pool.length; j++) {
-        for (let k = 0; k < pool.length; k++) {
-          for (let l = k + 1; l < pool.length; l++) {
-            const set = new Set([i, j, k, l]);
-            if (set.size < 4) continue;
+  playing.forEach(p=>sitoutStreak[p]=0);
+  sitting.forEach(p=>sitoutStreak[p]++);
 
-            const a = pool[i], b = pool[j];
-            const c = pool[k], d = pool[l];
+  /* Phase 3: Partner pairing */
+  let matches = [], pool=[...playing];
 
-            const score =
-              (partnerCount[a][b] || 0) +
-              (partnerCount[c][d] || 0);
+  while(pool.length>=4){
+    let best=null, bestScore=Infinity;
+    for(let i=0;i<pool.length;i++){
+      for(let j=i+1;j<pool.length;j++){
+        for(let k=0;k<pool.length;k++){
+          for(let l=k+1;l<pool.length;l++){
+            const set=new Set([i,j,k,l]);
+            if(set.size<4) continue;
 
-            if (score < bestScore) {
-              bestScore = score;
-              bestCombo = [a, b, c, d];
+            const a=pool[i], b=pool[j], c=pool[k], d=pool[l];
+            const score=(partnerCount[a][b]||0)+(partnerCount[c][d]||0);
+
+            if(score<bestScore){
+              bestScore=score;
+              best=[a,b,c,d];
             }
           }
         }
       }
     }
 
-    const [a, b, c, d] = bestCombo;
+    const [a,b,c,d]=best;
+    matches.push({teamA:[a,b], teamB:[c,d]});
 
-    matches.push({
-      teamA: [a, b],
-      teamB: [c, d]
-    });
+    partnerCount[a][b]=(partnerCount[a][b]||0)+1;
+    partnerCount[b][a]=partnerCount[a][b];
+    partnerCount[c][d]=(partnerCount[c][d]||0)+1;
+    partnerCount[d][c]=partnerCount[c][d];
 
-    /* Commit partner history */
-    partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
-    partnerCount[b][a] = partnerCount[a][b];
-    partnerCount[c][d] = (partnerCount[c][d] || 0) + 1;
-    partnerCount[d][c] = partnerCount[c][d];
+    playCount[a]++; playCount[b]++;
+    playCount[c]++; playCount[d]++;
 
-    /* Commit play counts */
-    playCount[a]++;
-    playCount[b]++;
-    playCount[c]++;
-    playCount[d]++;
-
-    /* Remove used players */
-    pool = pool.filter(p => ![a, b, c, d].includes(p));
+    pool = pool.filter(p=>![a,b,c,d].includes(p));
   }
 
-  return { matches };
+  return {matches};
 }
+
+/* ===================== FLOW ===================== */
+function start(){
+  players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
+  courts = parseInt(courtsInput.value,10)||1;
+  timerMinutes = parseInt(timerMinutesInput.value,10)||8;
+
+  playCount={}; sitoutStreak={}; partnerCount={};
+  timerSeconds = timerMinutes*60;
+  roundState="idle";
+
+  currentRound=generateRound();
+  nextRoundData=generateRound();
+
+  render();
+  setView("round");
+}
+
+function nextRound() {
+  // ✅ ALWAYS stop the timer
+  if (timerInterval) {
+    clearInterval(timerInterval);
+  }
+  timerRunning = false;
+
+  // ✅ Reset timer to user-selected duration
+  timerSeconds = timerMinutes * 60;
+  updateTimer();
+
+  // ✅ Advance the schedule ONLY
+  currentRound = nextRoundData;
+  nextRoundData = generateRound();
+
+  roundState = "idle";  // not running, not finished
+
+  render();
+  setView("round");     // stay on round view
+}
+
+function goToMenu(){
+  clearInterval(timerInterval);
+  timerRunning=false;
+  setView("menu");
+}
+
+/* ===================== RENDER ===================== */
+function render(){
+  roundHeading.textContent =
+    roundState==="finished" ? "Up Now" : "Current Round";
+
+  currentRoundNames.innerHTML =
+    currentRound.matches.map((m,i)=>`
+      <div class="matchup">
+        <div class="court-label">Court ${i+1}</div>
+        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+        <div class="vs">vs</div>
+        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+      </div>`).join("");
+
+  nextRoundNames.innerHTML =
+    nextRoundData.matches.map((m,i)=>`
+      <div class="matchup">
+        <div class="court-label">Court ${i+1}</div>
+        <div class="team">${m.teamA[0]} & ${m.teamA[1]}</div>
+        <div class="vs">vs</div>
+        <div class="team">${m.teamB[0]} & ${m.teamB[1]}</div>
+      </div>`).join("");
+}
+</script>
+</body>
+</html>

@@ -326,72 +326,124 @@ function togglePause(){
 }
 
 /* ===================== FAIRNESS SCHEDULER ===================== */
-function generateRound(){
+function generateRound() {
+  const MAX_SITOUT = 2;
   const slots = courts * 4;
 
+  // Ensure state exists
   players.forEach(p => {
     playCount[p] ??= 0;
     sitoutStreak[p] ??= 0;
     partnerCount[p] ??= {};
   });
 
-  /* Phase 1: Fairness ordering */
-  let sorted = [...players].sort((a,b)=>{
-    if(playCount[a]!==playCount[b]) return playCount[a]-playCount[b];
-    return sitoutStreak[b]-sitoutStreak[a];
+  /* --------------------------------------------------
+     STEP 1: Force players who sat out too long
+     -------------------------------------------------- */
+  let forcedPlayers = players
+    .filter(p => sitoutStreak[p] >= MAX_SITOUT)
+    .sort((a, b) => playCount[a] - playCount[b]);
+
+  if (forcedPlayers.length > slots) {
+    forcedPlayers = forcedPlayers.slice(0, slots);
+  }
+
+  let playing = [...forcedPlayers];
+
+  /* --------------------------------------------------
+     STEP 2: Fill remaining slots fairly
+     -------------------------------------------------- */
+  const remainingSlots = slots - playing.length;
+
+  if (remainingSlots > 0) {
+    let candidates = players
+      .filter(p => !playing.includes(p))
+      .sort((a, b) => {
+        if (playCount[a] !== playCount[b]) {
+          return playCount[a] - playCount[b];
+        }
+        return sitoutStreak[b] - sitoutStreak[a];
+      });
+
+    // Controlled randomness buffer
+    const buffer = Math.min(
+      2,
+      Math.max(0, candidates.length - remainingSlots)
+    );
+
+    const pool = candidates
+      .slice(0, remainingSlots + buffer)
+      .sort(() => Math.random() - 0.5);
+
+    playing.push(...pool.slice(0, remainingSlots));
+  }
+
+  /* --------------------------------------------------
+     STEP 3: Update sit‑out streaks
+     -------------------------------------------------- */
+  players.forEach(p => {
+    if (playing.includes(p)) {
+      sitoutStreak[p] = 0;
+    } else {
+      sitoutStreak[p]++;
+    }
   });
 
-  /* Phase 2: Controlled randomness */
-  const buffer = Math.min(2, sorted.length-slots);
-  let eligible = sorted.slice(0, slots+buffer).sort(()=>Math.random()-0.5);
+  /* --------------------------------------------------
+     STEP 4: Pair players (UNCHANGED LOGIC)
+     -------------------------------------------------- */
+  let matches = [];
+  let pool = [...playing];
 
-  let playing = eligible.slice(0, slots);
-  let sitting = players.filter(p=>!playing.includes(p));
+  while (pool.length >= 4) {
+    let bestCombo = null;
+    let bestScore = Infinity;
 
-  playing.forEach(p=>sitoutStreak[p]=0);
-  sitting.forEach(p=>sitoutStreak[p]++);
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = i + 1; j < pool.length; j++) {
+        for (let k = 0; k < pool.length; k++) {
+          for (let l = k + 1; l < pool.length; l++) {
+            const set = new Set([i, j, k, l]);
+            if (set.size < 4) continue;
 
-  /* Phase 3: Partner pairing */
-  let matches = [], pool=[...playing];
+            const a = pool[i], b = pool[j];
+            const c = pool[k], d = pool[l];
 
-  while(pool.length>=4){
-    let best=null, bestScore=Infinity;
-    for(let i=0;i<pool.length;i++){
-      for(let j=i+1;j<pool.length;j++){
-        for(let k=0;k<pool.length;k++){
-          for(let l=k+1;l<pool.length;l++){
-            const set=new Set([i,j,k,l]);
-            if(set.size<4) continue;
+            const score =
+              (partnerCount[a][b] || 0) +
+              (partnerCount[c][d] || 0);
 
-            const a=pool[i], b=pool[j], c=pool[k], d=pool[l];
-            const score=(partnerCount[a][b]||0)+(partnerCount[c][d]||0);
-
-            if(score<bestScore){
-              bestScore=score;
-              best=[a,b,c,d];
+            if (score < bestScore) {
+              bestScore = score;
+              bestCombo = [a, b, c, d];
             }
           }
         }
       }
     }
 
-    const [a,b,c,d]=best;
-    matches.push({teamA:[a,b], teamB:[c,d]});
+    const [a, b, c, d] = bestCombo;
 
-    partnerCount[a][b]=(partnerCount[a][b]||0)+1;
-    partnerCount[b][a]=partnerCount[a][b];
-    partnerCount[c][d]=(partnerCount[c][d]||0)+1;
-    partnerCount[d][c]=partnerCount[c][d];
+    matches.push({ teamA: [a, b], teamB: [c, d] });
 
-    playCount[a]++; playCount[b]++;
-    playCount[c]++; playCount[d]++;
+    // Commit partner history
+    partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
+    partnerCount[b][a] = partnerCount[a][b];
+    partnerCount[c][d] = (partnerCount[c][d] || 0) + 1;
+    partnerCount[d][c] = partnerCount[c][d];
 
-    pool = pool.filter(p=>![a,b,c,d].includes(p));
+    // Commit play counts
+    playCount[a]++;
+    playCount[b]++;
+    playCount[c]++;
+    playCount[d]++;
+
+    pool = pool.filter(p => ![a, b, c, d].includes(p));
   }
 
-  return {matches};
+  return { matches };
 }
-
+``
 /* ===================== FLOW ===================== */
 function start(){
   players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);

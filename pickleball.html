@@ -117,7 +117,11 @@ button {
   <label>Match length (minutes)</label>
   <input id="timerMinutesInput" type="number" min="1" value="8">
 
-  <button onclick="start()">Generate Schedule</button>
+  
+<button onclick="sessionActive ? resumeSchedule() : start()">
+  Resume Schedule
+</button>
+
 </div>
 
 <!-- ===== ROUND VIEW ===== -->
@@ -175,6 +179,8 @@ let roundState = "idle";
 /* Timer */
 let timerMinutes = 8, timerSeconds = 0;
 let timerInterval = null, timerRunning = false;
+
+let sessionActive = false;
 
 /* ===================== VIEW ===================== */
 function setView(v){
@@ -445,21 +451,39 @@ function generateRound() {
 }
 ``
 /* ===================== FLOW ===================== */
-function start(){
-  players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  courts = parseInt(courtsInput.value,10)||1;
-  timerMinutes = parseInt(timerMinutesInput.value,10)||8;
+function start() {
+  // 🔴 START A BRAND‑NEW SESSION
 
-  playCount={}; sitoutStreak={}; partnerCount={};
-  timerSeconds = timerMinutes*60;
-  roundState="idle";
+  playCount = {};
+  sitoutStreak = {};
+  partnerCount = {};
 
-  currentRound=generateRound();
-  nextRoundData=generateRound();
+  sessionActive = true;
+
+  currentRound = generateRound();
+  nextRoundData = generateRound();
 
   render();
   setView("round");
 }
+
+function resumeSchedule() {
+  if (!sessionActive) {
+    // If no active session, behave like Generate Schedule
+    start();
+    return;
+  }
+
+  // ✅ DO NOT reset playCount, sitoutStreak, or partnerCount
+  // ✅ DO NOT touch currentRound
+  // ✅ ONLY regenerate the upcoming round
+
+  nextRoundData = generateRound();
+
+  render();
+  setView("round");
+}
+
 
 function nextRound() {
   // ✅ ALWAYS stop the timer

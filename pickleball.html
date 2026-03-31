@@ -117,7 +117,9 @@ button {
   <label>Match length (minutes)</label>
   <input id="timerMinutesInput" type="number" min="1" value="8">
 
-  <button onclick="start()">Generate Schedule</button>
+  <button onclick="sessionActive ? returnToSchedule() : start()">
+  Return to Schedule
+</button>
 </div>
 
 <!-- ===== ROUND VIEW ===== -->
@@ -147,6 +149,8 @@ button {
 </div>
 
 <script>
+
+let sessionActive = false;
 
   /* ===================== DOM REFERENCES (FIXED) ===================== */
 const menuView = document.getElementById("menuView");
@@ -184,6 +188,7 @@ function setView(v){
 }
 
 /* ===================== ADDPLAYER ===================== */
+
 function addPlayer() {
   const name = playerActionInput.value.trim();
   if (!name) return;
@@ -193,16 +198,32 @@ function addPlayer() {
     .map(p => p.trim())
     .filter(Boolean);
 
-  // Prevent duplicates (case-insensitive)
+  // Prevent duplicates (case‑insensitive)
   if (list.some(p => p.toLowerCase() === name.toLowerCase())) {
     alert("That player is already in the list.");
     return;
   }
 
+  // ✅ Update UI list
   list.push(name);
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
-}
+
+  // ✅ If no session is active yet, stop here
+  if (!sessionActive) {
+    return;
+  }
+
+  // ✅ SESSION IS ACTIVE — initialize fairness state for NEW player ONLY
+  players.push(name);
+
+  const playCounts = Object.values(playCount);
+  const minPlayCount = playCounts.length > 0 ? Math.min(...playCounts) : 0;
+
+  playCount[name] = minPlayCount;
+  sitoutStreak[name] = 0;
+  partnerCount[name] = {};
+
 
 function removePlayer() {
   const name = playerActionInput.value.trim();
@@ -443,19 +464,32 @@ function generateRound() {
 
   return { matches };
 }
-``
+
 /* ===================== FLOW ===================== */
-function start(){
-  players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  courts = parseInt(courtsInput.value,10)||1;
-  timerMinutes = parseInt(timerMinutesInput.value,10)||8;
+function start() {
+  // 🔴 HARD RESET — NEW SESSION
+  playCount = {};
+  sitoutStreak = {};
+  partnerCount = {};
 
-  playCount={}; sitoutStreak={}; partnerCount={};
-  timerSeconds = timerMinutes*60;
-  roundState="idle";
+  sessionActive = true;
 
-  currentRound=generateRound();
-  nextRoundData=generateRound();
+  currentRound = generateRound();
+  nextRoundData = generateRound();
+
+  render();
+  setView("round");
+}
+function returnToSchedule() {
+  if (!sessionActive) {
+    // No active session yet → behave like Generate Schedule
+    start();
+    return;
+  }
+
+  // ✅ KEEP ALL FAIRNESS STATE
+  // ✅ Only regenerate the NEXT round
+  nextRoundData = generateRound();
 
   render();
   setView("round");

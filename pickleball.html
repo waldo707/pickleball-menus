@@ -117,7 +117,15 @@ button {
   <label>Match length (minutes)</label>
   <input id="timerMinutesInput" type="number" min="1" value="8">
 
-  <button onclick="start()">Generate Schedule</button>
+ 
+<button onclick="resumeSchedule()">
+  Resume Schedule
+</button>
+
+<button class="secondary" onclick="confirmGenerateSchedule()">
+  Generate Schedule (Start Over)
+</button>
+
 </div>
 
 <!-- ===== ROUND VIEW ===== -->
@@ -463,6 +471,38 @@ function start(){
   render();
   setView("round");
 }
+function resumeSchedule() {
+  if (!sessionActive) {
+    alert("No active schedule to resume.");
+    return;
+  }
+
+  // Continue existing session:
+  // - keep playCount
+  // - keep sitoutStreak
+  // - keep partnerCount
+  // - keep currentRound
+  // - regenerate NEXT round only
+  nextRoundData = generateRound();
+
+  render();
+  setView("round");
+}
+function confirmGenerateSchedule() {
+  if (sessionActive) {
+    const ok = confirm(
+      "This will start the schedule over and erase current game history.\n\nDo you want to continue?"
+    );
+
+    if (!ok) {
+      return; // user cancelled
+    }
+  }
+
+  // Intentional reset
+  start();
+}
+
 
 function nextRound() {
   // ✅ ALWAYS stop the timer

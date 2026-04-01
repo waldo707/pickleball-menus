@@ -191,28 +191,47 @@ function setView(v){
   roundView.style.display = v==="round" ? "block" : "none";
   runningView.style.display = v==="running" ? "block" : "none";
 }
-
-/* ===================== ADDPLAYER ===================== */
+/* ===================== ADD PLAYER ===================== */
 function addPlayer() {
   const name = playerActionInput.value.trim();
   if (!name) return;
 
+  // Read current UI list
   const list = playersInput.value
     .split(",")
     .map(p => p.trim())
     .filter(Boolean);
 
-  // Prevent duplicates (case-insensitive)
+  // Prevent duplicates
   if (list.some(p => p.toLowerCase() === name.toLowerCase())) {
     alert("That player is already in the list.");
     return;
   }
 
+  // ✅ Update UI
   list.push(name);
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
-}
 
+  // ✅ If session has NOT started yet, stop here
+  if (!sessionActive) {
+    return;
+  }
+
+  // ✅ SESSION IS ACTIVE — update scheduler state
+  players.push(name);
+
+  // Give the new player fair priority
+  const counts = Object.values(playCount);
+  const minPlayCount = counts.length ? Math.min(...counts) : 0;
+
+  playCount[name] = minPlayCount;
+  sitoutStreak[name] = 0;
+  partnerCount[name] = {};
+
+  console.log(`Player "${name}" added to current session`);
+}
+/* ===================== REMOVE PLAYER ===================== */
 function removePlayer() {
   const name = playerActionInput.value.trim();
   if (!name) {
@@ -220,25 +239,75 @@ function removePlayer() {
     return;
   }
 
+  // Read current UI player list
   const list = playersInput.value
     .split(",")
     .map(p => p.trim())
     .filter(Boolean);
 
-  // Case-insensitive match
-  const matchIndex = list.findIndex(
+  // Find case-insensitive match
+  const index = list.findIndex(
     p => p.toLowerCase() === name.toLowerCase()
   );
 
-  // ✅ Warning if not found
-  if (matchIndex === -1) {
-    alert(`"${name}" was not found.\nCheck spelling and try again.`);
+  if (index === -1) {
+    alert("Player not found. Check spelling.");
     return;
   }
 
-  list.splice(matchIndex, 1);
+  const removedName = list[index];
+
+  // ✅ Update UI list
+  list.splice(index, 1);
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
+
+  // ✅ If no active session, stop here
+  if (!sessionActive) {
+    return;
+  }
+
+  /* ===================== SESSION ACTIVE ===================== */
+
+  // Warn if player is in current or next round
+  const inCurrentRound =
+    currentRound &&
+    currentRound.matches.some(
+      m =>
+        m.teamA.includes(removedName) ||
+        m.teamB.includes(removedName)
+    );
+
+  const inNextRound =
+    nextRoundData &&
+    nextRoundData.matches.some(
+      m =>
+        m.teamA.includes(removedName) ||
+        m.teamB.includes(removedName)
+    );
+
+  if (inCurrentRound || inNextRound) {
+    const ok = confirm(
+      `${removedName} is currently scheduled to play.\n\n` +
+      `Removing them will adjust future rounds but NOT the current game.\n\n` +
+      `Do you want to continue?`
+    );
+    if (!ok) {
+      return;
+    }
+  }
+
+  // ✅ Remove from scheduler player list
+  players = players.filter(
+    p => p.toLowerCase() !== removedName.toLowerCase()
+  );
+
+  // ✅ Remove fairness state ONLY for this player
+  delete playCount[removedName];
+  delete sitoutStreak[removedName];
+  delete partnerCount[removedName];
+
+  console.log(`Player "${removedName}" removed from active session`);
 }
 
 /* ===================== AUDIO ===================== */

@@ -196,7 +196,7 @@ function addPlayer() {
   const name = playerActionInput.value.trim();
   if (!name) return;
 
-  // Read current UI list
+  // Parse players from UI
   const list = playersInput.value
     .split(",")
     .map(p => p.trim())
@@ -213,15 +213,13 @@ function addPlayer() {
   playersInput.value = list.join(", ");
   playerActionInput.value = "";
 
-  // ✅ If session has NOT started yet, stop here
-  if (!sessionActive) {
-    return;
-  }
+  // ✅ ONLY merge into scheduler if session is active
+  if (!sessionActive) return;
 
-  // ✅ SESSION IS ACTIVE — update scheduler state
+  // ✅ CRITICAL: update scheduler player list
   players.push(name);
 
-  // Give the new player fair priority
+  // ✅ Initialize fairness state for new player
   const counts = Object.values(playCount);
   const minPlayCount = counts.length ? Math.min(...counts) : 0;
 
@@ -229,8 +227,9 @@ function addPlayer() {
   sitoutStreak[name] = 0;
   partnerCount[name] = {};
 
-  console.log(`Player "${name}" added to current session`);
+  console.log(`Added "${name}" to active session`);
 }
+
 /* ===================== REMOVE PLAYER ===================== */
 function removePlayer() {
   const name = playerActionInput.value.trim();

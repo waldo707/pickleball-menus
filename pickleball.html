@@ -223,7 +223,7 @@ function addPlayer() {
   const counts = Object.values(playCount);
   const minPlayCount = counts.length ? Math.min(...counts) : 0;
 
-  playCount[name] = minPlayCount;
+  playCount[name] = minPlayCount - 1;
   sitoutStreak[name] = 0;
   partnerCount[name] = {};
 

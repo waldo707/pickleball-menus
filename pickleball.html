@@ -193,6 +193,7 @@ let roundNumber = 1;
 let timerMinutes = 8, timerSeconds = 0;
 let timerInterval = null, timerRunning = false;
 let resumeShouldRestartTimer = false;
+let roundEndTime = null;
 
 /* ===================== VIEW ===================== */
 function setView(v){
@@ -370,31 +371,47 @@ function updateTimer(){
   // Unlock audio on user gesture
   ensureAudioUnlocked();
 
+  // If previous round finished, advance to next
   if (roundState === "finished") {
     currentRound = nextRoundData;
     nextRoundData = generateRound();
   }
 
+  // ✅ Record absolute end time (mobile-safe)
+  roundEndTime = Date.now() + timerSeconds * 1000;
+
   roundState = "running";
-nextRoundLocked = true;
+  nextRoundLocked = true;
   timerRunning = true;
+
   setView("running");
 
-  timerInterval = setInterval(() => {
-    timerSeconds--;
+  // Update immediately, then every second
+  updateTimerFromClock();
+  timerInterval = setInterval(updateTimerFromClock, 1000);
+}
+
+function updateTimerFromClock() {
+  if (!timerRunning || !roundEndTime) return;
+
+  const remainingMs = roundEndTime - Date.now();
+
+  if (remainingMs <= 0) {
+    timerSeconds = 0;
     updateTimer();
 
-    if (timerSeconds <= 0) {
-      playAlarm();
+    playAlarm();
 
-      // Start red blinking
-      timerDisplay.classList.add("timer-alarm");
-      timerDisplayRunning.classList.add("timer-alarm");
+    // Start red blinking alarm
+    timerDisplay.classList.add("timer-alarm");
+    timerDisplayRunning.classList.add("timer-alarm");
 
+    endRound();
+    return;
+  }
 
-      endRound();
-    }
-  }, 1000);
+  timerSeconds = Math.ceil(remainingMs / 1000);
+  updateTimer();
 }
 
 function endRound(){
@@ -405,12 +422,20 @@ function endRound(){
   render();
   setView("round");
 }
+/* ✅ OPTIONAL: VISIBILITY SYNC (ADD HERE) */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && timerRunning) {
+    updateTimerFromClock();
+  }
+});
 
 function togglePause(){
   if(!timerRunning && timerSeconds>0){ startTimer(); return; }
   clearInterval(timerInterval);
   timerRunning=false;
 }
+
+
 
 /* ===================== FAIRNESS SCHEDULER ===================== */
 

@@ -180,6 +180,7 @@ let playCount = {}, sitoutStreak = {}, partnerCount = {};
 let currentRound = null, nextRoundData = null;
 let roundState = "idle";
 let sessionActive = false;
+let roundNumber = 1; 
 
 /* Timer */
 let timerMinutes = 8, timerSeconds = 0;
@@ -403,6 +404,22 @@ function togglePause(){
 }
 
 /* ===================== FAIRNESS SCHEDULER ===================== */
+
+
+function partnerRepeatWeight() {
+  // Rounds 1–7: almost forbidden
+  if (roundNumber <= 7) return 25;
+
+  // Rounds 8–10: strongly discouraged
+  if (roundNumber <= 10) return 8;
+
+  // Rounds 11–12: mild discouragement
+  if (roundNumber <= 12) return 3;
+
+  // Rounds 13+: normal late-session behavior
+  return 1;
+}
+
 function generateRound() {
   const MAX_SITOUT = 2;
   const slots = courts * 4;
@@ -486,9 +503,12 @@ function generateRound() {
             const a = pool[i], b = pool[j];
             const c = pool[k], d = pool[l];
 
-            const score =
-              (partnerCount[a][b] || 0) +
-              (partnerCount[c][d] || 0);
+            
+const w = partnerRepeatWeight();
+
+const score =
+  ((partnerCount[a][b] || 0) * w) +
+  ((partnerCount[c][d] || 0) * w);
 
             if (score < bestScore) {
               bestScore = score;
@@ -532,6 +552,7 @@ function start(){
   roundState="idle";
 
   sessionActive = true; 
+roundNumber = 1;
 
   currentRound=generateRound();
   nextRoundData=generateRound();
@@ -586,6 +607,7 @@ function nextRound() {
   // ✅ Advance the schedule ONLY
   currentRound = nextRoundData;
   nextRoundData = generateRound();
+roundNumber++;
 
   roundState = "idle";  // not running, not finished
 

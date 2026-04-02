@@ -98,6 +98,12 @@ button {
 
 <body>
 
+<!-- ✅ GLOBAL TIMER (ALWAYS VISIBLE) -->
+  <div id="globalTimer" class="global-timer">
+    <span id="timerDisplay">08:00</span>
+  </div>
+
+
 <!-- ===== MAIN MENU ===== -->
 <div id="menuView">
   <h1>Pickleball Scheduler</h1>
@@ -186,6 +192,7 @@ let roundNumber = 1;
 /* Timer */
 let timerMinutes = 8, timerSeconds = 0;
 let timerInterval = null, timerRunning = false;
+let resumeShouldRestartTimer = false;
 
 /* ===================== VIEW ===================== */
 function setView(v){
@@ -592,19 +599,27 @@ roundNumber = 1;
   setView("round");
 }
 
+
 function resumeSchedule() {
   if (!sessionActive) {
     alert("No active schedule to resume.");
     return;
   }
 
-  // ✅ Only regenerate Next Round if it is NOT locked
+  // Only regenerate Next Up if not locked
   if (!nextRoundLocked) {
     nextRoundData = generateRound();
   }
 
+  setView("running");
   render();
-  setView("round");
+
+  // ✅ Restart timer if it was running before menu
+  if (resumeShouldRestartTimer && !timerRunning) {
+    startTimer();
+  }
+
+  resumeShouldRestartTimer = false;
 }
 function confirmGenerateSchedule() {
   if (sessionActive) {
@@ -645,11 +660,15 @@ nextRoundLocked = false; // ✅ unlock for recompute after commit
   setView("round");     // stay on round view
 }
 
-function goToMenu(){
-  clearInterval(timerInterval);
-  timerRunning=false;
+
+function goToMenu() {
+  // Remember whether the timer was running
+  resumeShouldRestartTimer = timerRunning;
+
   setView("menu");
 }
+
+
 
 /* ===================== RENDER ===================== */
 function render(){

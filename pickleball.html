@@ -420,6 +420,15 @@ function partnerRepeatWeight() {
   return 1;
 }
 
+function balanceWeight() {
+  if (roundNumber <= 4) return 10;
+  if (roundNumber <= 7) return 8;
+  if (roundNumber <= 10) return 5;
+  if (roundNumber <= 12) return 3;
+  return 1;
+}
+
+
 function generateRound() {
   const MAX_SITOUT = 2;
   const slots = courts * 4;
@@ -504,11 +513,31 @@ function generateRound() {
             const c = pool[k], d = pool[l];
 
             
-const w = partnerRepeatWeight();
 
-const score =
-  ((partnerCount[a][b] || 0) * w) +
-  ((partnerCount[c][d] || 0) * w);
+const pw = partnerRepeatWeight();
+const bw = balanceWeight();
+
+// ===== Partner repeat penalty =====
+const partnerScore =
+  ((partnerCount[a][b] || 0) * pw) +
+  ((partnerCount[c][d] || 0) * pw);
+
+// ===== Play-count balance penalty =====
+const minCount = Math.min(
+  playCount[a],
+  playCount[b],
+  playCount[c],
+  playCount[d]
+);
+
+const balanceScore =
+  ((playCount[a] - minCount) +
+   (playCount[b] - minCount) +
+   (playCount[c] - minCount) +
+   (playCount[d] - minCount)) * bw;
+
+// ===== Final hybrid score =====
+const score = partnerScore + balanceScore;
 
             if (score < bestScore) {
               bestScore = score;
@@ -540,7 +569,7 @@ const score =
 
   return { matches };
 }
-``
+
 /* ===================== FLOW ===================== */
 function start(){
   players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);

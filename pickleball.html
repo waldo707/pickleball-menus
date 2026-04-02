@@ -180,6 +180,7 @@ let playCount = {}, sitoutStreak = {}, partnerCount = {};
 let currentRound = null, nextRoundData = null;
 let roundState = "idle";
 let sessionActive = false;
+let nextRoundLocked = false;
 let roundNumber = 1; 
 
 /* Timer */
@@ -368,6 +369,7 @@ function updateTimer(){
   }
 
   roundState = "running";
+nextRoundLocked = true;
   timerRunning = true;
   setView("running");
 
@@ -589,19 +591,17 @@ roundNumber = 1;
   render();
   setView("round");
 }
+
 function resumeSchedule() {
   if (!sessionActive) {
     alert("No active schedule to resume.");
     return;
   }
 
-  // Continue existing session:
-  // - keep playCount
-  // - keep sitoutStreak
-  // - keep partnerCount
-  // - keep currentRound
-  // - regenerate NEXT round only
-  nextRoundData = generateRound();
+  // ✅ Only regenerate Next Round if it is NOT locked
+  if (!nextRoundLocked) {
+    nextRoundData = generateRound();
+  }
 
   render();
   setView("round");
@@ -637,6 +637,7 @@ function nextRound() {
   currentRound = nextRoundData;
   nextRoundData = generateRound();
 roundNumber++;
+nextRoundLocked = false; // ✅ unlock for recompute after commit
 
   roundState = "idle";  // not running, not finished
 

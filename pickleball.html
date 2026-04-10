@@ -195,6 +195,13 @@ let timerInterval = null, timerRunning = false;
 let resumeShouldRestartTimer = false;
 let roundEndTime = null;
 
+
+function calculateCourts(playerCount, requestedCourts) {
+  const maxCourts = Math.floor(playerCount / 4);
+  return Math.max(1, Math.min(requestedCourts, maxCourts));
+}
+
+
 /* ===================== VIEW ===================== */
 function setView(v){
   menuView.style.display = v==="menu" ? "block" : "none";
@@ -607,7 +614,14 @@ const score = partnerScore + balanceScore;
 /* ===================== FLOW ===================== */
 function start(){
   players = playersInput.value.split(",").map(p=>p.trim()).filter(Boolean);
-  courts = parseInt(courtsInput.value,10)||1;
+  
+const requestedCourts = parseInt(document.getElementById("courtsInput").value);
+
+courts = calculateCourts(players.length, requestedCourts);
+
+// Optional: reflect the actual value back into the UI
+document.getElementById("courtsInput").value = courts;
+
   timerMinutes = parseInt(timerMinutesInput.value,10)||8;
 
   playCount={}; sitoutStreak={}; partnerCount={};
